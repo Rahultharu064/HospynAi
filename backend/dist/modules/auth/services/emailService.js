@@ -1,80 +1,79 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.EmailService = void 0;
 // src/services/email.service.ts
-import nodemailer from 'nodemailer';
-import sgMail from '@sendgrid/mail';
-import { config } from '../../../config';
-import logger from '../../../utils/logger';
-
+const nodemailer_1 = __importDefault(require("nodemailer"));
+const mail_1 = __importDefault(require("@sendgrid/mail"));
+const config_1 = require("../../../config");
+const logger_1 = __importDefault(require("../../../utils/logger"));
 class EmailServiceClass {
-  private transporter: nodemailer.Transporter | null = null;
-  private useSendGrid: boolean = false;
-
-  constructor() {
-    if (config.email.sendgridApiKey) {
-      sgMail.setApiKey(config.email.sendgridApiKey);
-      this.useSendGrid = true;
-      logger.info('Email service initialized with SendGrid API');
-    } else {
-      this.transporter = nodemailer.createTransport({
-        host: config.email.smtp.host,
-        port: config.email.smtp.port,
-        secure: config.email.smtp.port === 465,
-        auth: {
-          user: config.email.smtp.user,
-          pass: config.email.smtp.password,
-        },
-      });
-      logger.info('Email service initialized with SMTP fallback');
+    constructor() {
+        this.transporter = null;
+        this.useSendGrid = false;
+        if (config_1.config.email.sendgridApiKey) {
+            mail_1.default.setApiKey(config_1.config.email.sendgridApiKey);
+            this.useSendGrid = true;
+            logger_1.default.info('Email service initialized with SendGrid API');
+        }
+        else {
+            this.transporter = nodemailer_1.default.createTransport({
+                host: config_1.config.email.smtp.host,
+                port: config_1.config.email.smtp.port,
+                secure: config_1.config.email.smtp.port === 465,
+                auth: {
+                    user: config_1.config.email.smtp.user,
+                    pass: config_1.config.email.smtp.password,
+                },
+            });
+            logger_1.default.info('Email service initialized with SMTP fallback');
+        }
     }
-  }
-
-  async sendMail(to: string, subject: string, html: string): Promise<void> {
-    try {
-      if (this.useSendGrid) {
-        await sgMail.send({
-          to,
-          from: {
-            name: 'VoiceMed Pro',
-            email: config.email.from,
-          },
-          subject,
-          html,
-        });
-      } else if (this.transporter) {
-        await this.transporter.sendMail({
-          from: `"VoiceMed Pro" <${config.email.from}>`,
-          to,
-          subject,
-          html,
-        });
-      } else {
-        throw new Error('Email transporter not initialized');
-      }
-      logger.info(`Email sent to ${to}: ${subject}`);
-    } catch (error) {
-      logger.error(`Failed to send email to ${to}:`, error);
-      // Don't throw - email failures shouldn't break the app
+    async sendMail(to, subject, html) {
+        try {
+            if (this.useSendGrid) {
+                await mail_1.default.send({
+                    to,
+                    from: {
+                        name: 'VoiceMed Pro',
+                        email: config_1.config.email.from,
+                    },
+                    subject,
+                    html,
+                });
+            }
+            else if (this.transporter) {
+                await this.transporter.sendMail({
+                    from: `"VoiceMed Pro" <${config_1.config.email.from}>`,
+                    to,
+                    subject,
+                    html,
+                });
+            }
+            else {
+                throw new Error('Email transporter not initialized');
+            }
+            logger_1.default.info(`Email sent to ${to}: ${subject}`);
+        }
+        catch (error) {
+            logger_1.default.error(`Failed to send email to ${to}:`, error);
+            // Don't throw - email failures shouldn't break the app
+        }
     }
-  }
-
-  async sendOtpEmail(
-    to: string,
-    otp: string,
-    type: string
-  ): Promise<void> {
-    const subjectMap: Record<string, string> = {
-      EMAIL_VERIFICATION: 'Verify your email address',
-      PASSWORD_RESET: 'Reset your password',
-      TWO_FACTOR: 'Two-factor authentication code',
-    };
-
-    const subject = subjectMap[type] || 'Your verification code';
-    const html = this.getOtpTemplate(otp, type);
-
-    await this.sendMail(to, subject, html);
-  }
-
-  async sendWelcomeEmail(to: string, firstName: string): Promise<void> {
-    const html = `
+    async sendOtpEmail(to, otp, type) {
+        const subjectMap = {
+            EMAIL_VERIFICATION: 'Verify your email address',
+            PASSWORD_RESET: 'Reset your password',
+            TWO_FACTOR: 'Two-factor authentication code',
+        };
+        const subject = subjectMap[type] || 'Your verification code';
+        const html = this.getOtpTemplate(otp, type);
+        await this.sendMail(to, subject, html);
+    }
+    async sendWelcomeEmail(to, firstName) {
+        const html = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -113,12 +112,10 @@ class EmailServiceClass {
         </body>
       </html>
     `;
-
-    await this.sendMail(to, 'Welcome to VoiceMed Pro!', html);
-  }
-
-  async sendPasswordChangeNotification(to: string, firstName: string): Promise<void> {
-    const html = `
+        await this.sendMail(to, 'Welcome to VoiceMed Pro!', html);
+    }
+    async sendPasswordChangeNotification(to, firstName) {
+        const html = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -155,12 +152,10 @@ class EmailServiceClass {
         </body>
       </html>
     `;
-
-    await this.sendMail(to, 'VoiceMed Pro - Password Changed Successfully', html);
-  }
-
-  private getOtpTemplate(otp: string, type: string): string {
-    return `
+        await this.sendMail(to, 'VoiceMed Pro - Password Changed Successfully', html);
+    }
+    getOtpTemplate(otp, type) {
+        return `
       <!DOCTYPE html>
       <html>
         <head>
@@ -183,7 +178,7 @@ class EmailServiceClass {
             <div class="content">
               <p>Your verification code is:</p>
               <div class="otp-code">${otp}</div>
-              <p class="expiry">This code expires in ${config.otp.expiryMinutes} minutes.</p>
+              <p class="expiry">This code expires in ${config_1.config.otp.expiryMinutes} minutes.</p>
               <p style="color: #6b7280;">If you didn't request this code, please ignore this email.</p>
             </div>
             <div class="footer">
@@ -193,7 +188,7 @@ class EmailServiceClass {
         </body>
       </html>
     `;
-  }
+    }
 }
-
-export const EmailService = new EmailServiceClass();
+exports.EmailService = new EmailServiceClass();
+//# sourceMappingURL=emailService.js.map
