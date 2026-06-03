@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  DOCTOR
+  NURSE
+  RECEPTIONIST
+  PHARMACIST
+  LAB_TECHNICIAN
+  PATIENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+  APPLE
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  branches  Branch[]
+  users     User[]
+  auditLogs AuditLog[]
+  
+  @@map("organizations")
+}
+
+model Branch {
+  id             String       @id @default(cuid())
+  name           String
+  organizationId String       @map("organization_id")
+  address        String?
+  phone          String?
+  email          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  users          User[]
+  
+  @@map("branches")
+}
+
+model User {
+  id              String       @id @default(cuid())
+  email           String       @unique
+  phone           String?      @unique
+  passwordHash    String?      @map("password_hash")
+  firstName       String       @map("first_name")
+  lastName        String       @map("last_name")
+  role            UserRole     @default(PATIENT)
+  status          UserStatus   @default(PENDING_VERIFICATION)
+  authProvider    AuthProvider @default(LOCAL) @map("auth_provider")
+  googleId        String?      @unique @map("google_id")
+  avatarUrl       String?      @map("avatar_url")
+  isEmailVerified Boolean      @default(false) @map("is_email_verified")
+  isPhoneVerified Boolean      @default(false) @map("is_phone_verified")
+  lastLoginAt     DateTime?    @map("last_login_at")
+  lastLoginIp     String?      @map("last_login_ip")
+  mfaEnabled      Boolean      @default(false) @map("mfa_enabled")
+  mfaSecret       String?      @map("mfa_secret")
+  organizationId  String?      @map("organization_id")
+  branchId        String?      @map("branch_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+  
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  branch          Branch?       @relation(fields: [branchId], references: [id])
+  sessions        Session[]
+  refreshTokens   RefreshToken[]
+  otpTokens       OtpToken[]
+  auditLogs       AuditLog[]
+  
+  @@index([email])
+  @@index([phone])
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  token        String   @unique
+  ipAddress    String   @map("ip_address")
+  userAgent    String   @map("user_agent")
+  expiresAt    DateTime @map("expires_at")
+  lastActivity DateTime @default(now()) @map("last_activity")
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  token     String    @unique
+  family    String
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+model OtpToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  code       String
+  type       String
+  channel    String
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at")
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([code, type])
+  @@map("otp_tokens")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  userId         String?  @map("user_id")
+  organizationId String?  @map("organization_id")
+  action         String
+  resource       String
+  resourceId     String?  @map("resource_id")
+  ipAddress      String   @map("ip_address")
+  userAgent      String   @map("user_agent")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  user           User?          @relation(fields: [userId], references: [id])
+  organization   Organization?  @relation(fields: [organizationId], references: [id])
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
