@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { PatientController } from '../controllers/patient.controller';
-import { authenticate, authorize } from '../middleware/auth.middleware';
-import { uploadDocument } from '../middleware/upload.middleware';
-import { validate } from '../middleware/validate.middleware';
+import { PatientController } from '../controllers/patientController';
+import { authenticate, authorize } from '../../../middleware/authMiddleware';
+import { uploadDocument } from '../../../middleware/uploadMiddleware';
+import { validate } from '../../../middleware/validateMiddleware';
 import { rateLimit } from 'express-rate-limit';
 import {
   createPatientSchema,
@@ -11,7 +11,7 @@ import {
   patientQuerySchema,
   bulkImportSchema,
   uploadDocumentSchema,
-} from '../validators/patient.validator';
+} from '../validators/patientValidator';
 import { UserRole } from '@prisma/client';
 
 const router = Router();

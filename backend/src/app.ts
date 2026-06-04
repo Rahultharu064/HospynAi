@@ -8,6 +8,8 @@ import passport from './config/passport';
 import { config } from './config';
 import { errorHandler, notFoundHandler } from './middleware/errorMiddleware';
 import authRoutes from '../src/modules/auth/routes/authRoute';
+import patientRoute from "../src/modules/patient/routes/patientRoute"
+
 import logger, { morganStream } from './utils/logger';
 
 const app = express();
@@ -31,6 +33,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/patient',patientRoute)
 app.use(notFoundHandler);
 app.use(errorHandler);
 
