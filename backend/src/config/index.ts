@@ -60,8 +60,10 @@ export const config = {
   upload: {
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'),
     allowedMimeTypes: (process.env.ALLOWED_MIME_TYPES || 'image/jpeg,image/png,image/webp,application/pdf').split(','),
-    s3Bucket: process.env.AWS_S3_BUCKET || 'voicemed-pro-uploads',
-    s3Region: process.env.AWS_REGION || 'us-east-1',
+    cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+    cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || '',
+    cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || '',
+    cloudinaryFolder: process.env.CLOUDINARY_FOLDER || 'hospyn_ai',
   },
   
   redis: {

@@ -1039,14 +1039,12 @@ export class AuthService {
       throw new BadRequestError('File size exceeds 5MB limit');
     }
 
-    // Upload to S3
-    const key = await fileService.uploadToS3(
+    // Upload to Cloudinary
+    const avatarUrl = await fileService.uploadFile(
       file.path,
       file.originalname,
       file.mimetype
     );
-
-    const avatarUrl = fileService.getPublicUrl(key);
 
     // Delete old avatar if exists
     const user = await prisma.user.findUnique({
@@ -1055,9 +1053,9 @@ export class AuthService {
     });
 
     if (user?.avatarUrl) {
-      const oldKey = user.avatarUrl.split('/').pop();
-      if (oldKey) {
-        await fileService.deleteFromS3(oldKey).catch((error) => {
+      const oldPublicId = fileService.extractPublicId(user.avatarUrl);
+      if (oldPublicId) {
+        await fileService.deleteFile(oldPublicId).catch((error: any) => {
           logger.error('Failed to delete old avatar:', error);
         });
       }

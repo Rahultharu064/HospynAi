@@ -37,27 +37,29 @@ model Organization {
   slug      String   @unique
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  
+
   branches  Branch[]
   users     User[]
   auditLogs AuditLog[]
-  
+  patients  Patient[]
+
   @@map("organizations")
 }
 
 model Branch {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   name           String
-  organizationId String       @map("organization_id")
+  organizationId String   @map("organization_id")
   address        String?
   phone          String?
   email          String?
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  users          User[]
-  
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  users        User[]
+  patients     Patient[]
+
   @@map("branches")
 }
 
@@ -84,14 +86,20 @@ model User {
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
   deletedAt       DateTime?    @map("deleted_at")
-  
-  organization    Organization? @relation(fields: [organizationId], references: [id])
-  branch          Branch?       @relation(fields: [branchId], references: [id])
-  sessions        Session[]
-  refreshTokens   RefreshToken[]
-  otpTokens       OtpToken[]
-  auditLogs       AuditLog[]
-  
+
+  organization  Organization?  @relation(fields: [organizationId], references: [id])
+  branch        Branch?        @relation(fields: [branchId], references: [id])
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+  otpTokens     OtpToken[]
+  auditLogs     AuditLog[]
+
+  // Patient and Document relations
+  primaryDoctorPatients Patient[]         @relation("PrimaryDoctor")
+  createdPatients       Patient[]         @relation("PatientCreatedBy")
+  updatedPatients       Patient[]         @relation("PatientUpdatedBy")
+  uploadedDocuments     PatientDocument[]
+
   @@index([email])
   @@index([phone])
   @@index([organizationId])
@@ -107,9 +115,9 @@ model Session {
   expiresAt    DateTime @map("expires_at")
   lastActivity DateTime @default(now()) @map("last_activity")
   createdAt    DateTime @default(now()) @map("created_at")
-  
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([token])
   @@map("sessions")
@@ -123,9 +131,9 @@ model RefreshToken {
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   createdAt DateTime  @default(now()) @map("created_at")
-  
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([token])
   @@index([family])
@@ -142,9 +150,9 @@ model OtpToken {
   expiresAt  DateTime  @map("expires_at")
   verifiedAt DateTime? @map("verified_at")
   createdAt  DateTime  @default(now()) @map("created_at")
-  
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([code, type])
   @@map("otp_tokens")
@@ -161,12 +169,124 @@ model AuditLog {
   userAgent      String   @map("user_agent")
   metadata       Json?
   createdAt      DateTime @default(now()) @map("created_at")
-  
-  user           User?          @relation(fields: [userId], references: [id])
-  organization   Organization?  @relation(fields: [organizationId], references: [id])
-  
+
+  user         User?         @relation(fields: [userId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
   @@index([userId])
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  DECEASED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+model Patient {
+  id          String      @id @default(cuid())
+  patientId   String      @unique @map("patient_id")
+  firstName   String      @map("first_name")
+  lastName    String      @map("last_name")
+  email       String?     @unique
+  phone       String?     @unique
+  dateOfBirth DateTime?   @map("date_of_birth")
+  gender      Gender?
+  bloodGroup  BloodGroup? @map("blood_group")
+
+  // Address
+  address String?
+  city    String?
+  state   String?
+  country String?
+  zipCode String? @map("zip_code")
+
+  // Emergency Contact
+  emergencyContactName     String? @map("emergency_contact_name")
+  emergencyContactPhone    String? @map("emergency_contact_phone")
+  emergencyContactRelation String? @map("emergency_contact_relation")
+
+  // Insurance
+  insuranceProvider     String?   @map("insurance_provider")
+  insurancePolicyNumber String?   @map("insurance_policy_number")
+  insuranceValidUntil   DateTime? @map("insurance_valid_until")
+
+  // Medical Information
+  allergies          String[]
+  chronicConditions  String[] @map("chronic_conditions")
+  currentMedications String[] @map("current_medications")
+
+  notes  String?       @db.Text
+  status PatientStatus @default(ACTIVE)
+
+  // Relations
+  organizationId  String? @map("organization_id")
+  branchId        String? @map("branch_id")
+  primaryDoctorId String? @map("primary_doctor_id")
+  createdById     String  @map("created_by_id")
+  updatedById     String  @map("updated_by_id")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  organization  Organization? @relation(fields: [organizationId], references: [id])
+  branch        Branch?       @relation(fields: [branchId], references: [id])
+  primaryDoctor User?         @relation("PrimaryDoctor", fields: [primaryDoctorId], references: [id])
+  createdBy     User          @relation("PatientCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User          @relation("PatientUpdatedBy", fields: [updatedById], references: [id])
+
+  // appointments             Appointment[]
+  // medicalRecords           MedicalRecord[]
+  documents PatientDocument[]
+  // payments                 Payment[]
+
+  @@index([patientId])
+  @@index([email])
+  @@index([phone])
+  @@index([organizationId])
+  @@index([primaryDoctorId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("patients")
+}
+
+model PatientDocument {
+  id           String   @id @default(cuid())
+  patientId    String   @map("patient_id")
+  documentType String   @map("document_type")
+  title        String
+  description  String?  @db.Text
+  fileName     String   @map("file_name")
+  fileSize     Int      @map("file_size")
+  mimeType     String   @map("mime_type")
+  s3Key        String   @map("s3_key")
+  url          String
+  uploadedById String   @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
+
+  @@index([patientId])
+  @@map("patient_documents")
 }

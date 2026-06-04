@@ -49,8 +49,10 @@ export declare const config: {
     upload: {
         maxFileSize: number;
         allowedMimeTypes: string[];
-        s3Bucket: string;
-        s3Region: string;
+        cloudinaryCloudName: string;
+        cloudinaryApiKey: string;
+        cloudinaryApiSecret: string;
+        cloudinaryFolder: string;
     };
     redis: {
         url: string;
