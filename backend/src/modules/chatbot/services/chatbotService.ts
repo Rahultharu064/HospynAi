@@ -1,9 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
-import prisma from '../database/prisma';
-import { whisperClient } from '../integrations/ai/whisper.client';
-import { gptClient, ChatMessage } from '../integrations/ai/gpt.client';
-import { embeddingClient } from '../integrations/ai/embedding.client';
-import { qdrantService } from '../integrations/ai/qdrant.client';
+import prisma from '../../../config/prisma';
+import { whisperClient } from '../../../integration/ai/wishperClient';
+import { gptClient, ChatMessage } from '../../../integration/ai/aiClient';
+import { embeddingClient } from '../../../integration/ai/embeddingClient';
+import { qdrantService } from '../../../integration/ai/';
 import { ChatMessageInput, AudioMessageInput, ChatHistoryInput } from '../validators/chatbot.validator';
 import { NotFoundError } from '../utils/errors';
 import {
