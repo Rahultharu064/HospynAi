@@ -3,7 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { config } from './index';
 import prisma from '../config/prisma';
-import { TokenPayload, GoogleProfile } from '../types/auth.types';
+import { TokenPayload, GoogleProfile } from '../types/authTypes';
 import { AuthProvider, UserRole, UserStatus } from '@prisma/client';
 import logger from '../utils/logger';
 
