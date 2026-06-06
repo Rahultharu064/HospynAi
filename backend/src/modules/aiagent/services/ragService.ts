@@ -1,19 +1,19 @@
-import prisma from '../database/prisma';
-import { FileService } from './file.service';
-import { qdrantService } from '../integrations/ai/qdrant.client';
-import { gptClient } from '../integrations/ai/gpt.client';
-import { AuditService } from './audit.service';
+import prisma from '../../../config/prisma';
+import { FileService } from '../../auth/services/fileService';
+import { qdrantService } from '../../../integration/ai/quadrantClient';
+import { gptClient } from '../../../integration/ai/aiClient';
+import { AuditService } from '../../auth/services/auditService';
 import {
   IngestDocumentInput,
   RagQueryInput,
   RagDocumentQueryInput,
-} from '../validators/ai.validator';
+} from '../validators/aiagentValidators';
 import {
   RagQueryResponse,
   RagDocumentResponse,
   RagCitation,
-} from '../types/ai.types';
-import logger from '../utils/logger';
+} from '../../../types/aiagentTypes';
+import logger from '../../../utils/logger';
 
 export class RagService {
   /**

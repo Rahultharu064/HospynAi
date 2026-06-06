@@ -6,7 +6,7 @@ import prisma, { PrismaService } from './config/prisma';
 import logger from './utils/logger';
 // server.ts - Add chatbot WebSocket
 import { setupChatbotSocket } from './utils/socket/chatbotSocket';
-
+import { setupTelemedicineSocket } from './utils/socket/telemedicineSocket';
 
 const startServer = async () => {
   try {
@@ -21,6 +21,7 @@ const startServer = async () => {
     });
 
     setupChatbotSocket(io);
+    setupTelemedicineSocket(io);
 
     const gracefulShutdown = async (signal: string) => {
       logger.info(`${signal} received. Shutting down...`);
