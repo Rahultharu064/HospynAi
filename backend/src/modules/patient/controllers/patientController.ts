@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
-import { PatientService } from '../services/patient.service';
-import { AsyncHandler } from '../middleware/error.middleware';
-import { BadRequestError, UnauthorizedError } from '../utils/errors';
+import { PatientService } from '../services/patientService';
+import { AsyncHandler } from '../../../middleware/errorMiddleware';
+import { BadRequestError, UnauthorizedError } from '../../../utils/errors';
 import {
   CreatePatientInput,
   UpdatePatientInput,
   PatientQueryInput,
-} from '../validators/patient.validator';
+} from '../validators/patientValidator';
 
 export class PatientController {
   // POST /api/v1/patients

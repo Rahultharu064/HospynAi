@@ -1,26 +1,26 @@
 import { Prisma, PatientStatus, Gender, BloodGroup } from '@prisma/client';
-import prisma from '../database/prisma';
-import { FileService } from './file.service';
-import { AuditService } from './audit.service';
+import prisma from '../../../config/prisma';
+import { FileService } from '../../auth/services/fileService';
+import { AuditService } from '../../auth/services/auditService';
 import {
   CreatePatientInput,
   UpdatePatientInput,
   PatientQueryInput,
-} from '../validators/patient.validator';
+} from '../validators/patientValidator';
 import {
   BadRequestError,
   NotFoundError,
   ConflictError,
   ForbiddenError,
-} from '../utils/errors';
+} from '../../../utils/errors';
 import {
   PatientResponse,
   PatientListResponse,
   PatientStats,
   BulkOperationResult,
   PatientDocumentResponse,
-} from '../types/patient.types';
-import logger from '../utils/logger';
+} from '../../../types/patientTypes';
+import logger from '../../../utils/logger';
 
 export class PatientService {
   /**
