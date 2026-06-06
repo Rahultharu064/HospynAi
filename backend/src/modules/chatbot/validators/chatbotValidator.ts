@@ -10,7 +10,7 @@ export const chatMessageSchema = z.object({
     patientId: z.string().cuid('Invalid patient ID').optional().nullable(),
     context: z.enum(['GENERAL', 'DOCTOR', 'PATIENT', 'TRIAGE']).optional().default('GENERAL'),
     language: z.string().length(2).optional().default('en'),
-    stream: z.boolean().optional().default(false),
+    stream: z.boolean().default(false),
 
     attachments: z.array(z.object({
       type: z.enum(['image', 'document', 'audio']),

@@ -3,14 +3,14 @@ import prisma from '../../../config/prisma';
 import { whisperClient } from '../../../integration/ai/wishperClient';
 import { gptClient, ChatMessage } from '../../../integration/ai/aiClient';
 import { embeddingClient } from '../../../integration/ai/embeddingClient';
-import { qdrantService } from '../../../integration/ai/';
-import { ChatMessageInput, AudioMessageInput, ChatHistoryInput } from '../validators/chatbot.validator';
-import { NotFoundError } from '../utils/errors';
+import { qdrantService } from '../../../integration/ai/quadrantClient';
+import { ChatMessageInput, AudioMessageInput, ChatHistoryInput } from '../validators/chatbotValidator';
+import { NotFoundError } from '../../../utils/errors';
 import {
   ChatResponse, AudioChatResponse, ChatHistoryResponse,
   ChatHistoryMessage, ChatSession, ChatStats, SuggestedAction,
-} from '../types/chatbot.types';
-import logger from '../utils/logger';
+} from '../../../types/chatbotTypes';
+import logger from '../../../utils/logger';
 
 export class ChatbotService {
   /**
@@ -183,6 +183,7 @@ export class ChatbotService {
         patientId: data.patientId,
         context: data.context,
         language: data.language,
+        stream: false,
       },
       userId,
       ''
