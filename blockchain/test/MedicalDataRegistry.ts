@@ -1,36 +1,34 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
+const { ethers } = hre;
 
-const { ethers } = await network.create();
+describe("MedicalDataRegistry", function () {
+  it("Should record transactions correctly", async function () {
+    const MedicalDataRegistry = await ethers.getContractFactory("MedicalDataRegistry");
+    const registry = await MedicalDataRegistry.deploy();
+    await registry.waitForDeployment();
 
-describe("Counter", function () {
-  it("Should emit the Increment event when calling the inc() function", async function () {
-    const counter = await ethers.deployContract("Counter");
+    const dataHash = "0x7f83b1657ff1fc53b92f41ec4388e367806fde12b9c8b7f83b1657ff1fc53b92";
+    const dataType = "EMR";
+    const operation = "CREATE";
+    const patientId = "patient-123";
+    const targetProvider = ethers.ZeroAddress;
+    const metadata = '{"notes": "Initial EMR record"}';
 
-    await expect(counter.inc()).to.emit(counter, "Increment").withArgs(1n);
-  });
-
-  it("The sum of the Increment events should match the current value", async function () {
-    const counter = await ethers.deployContract("Counter");
-    const deploymentBlockNumber = await ethers.provider.getBlockNumber();
-
-    // run a series of increments
-    for (let i = 1; i <= 10; i++) {
-      await counter.incBy(i);
-    }
-
-    const events = await counter.queryFilter(
-      counter.filters.Increment(),
-      deploymentBlockNumber,
-      "latest",
+    const tx = await registry.recordTransaction(
+      dataHash,
+      dataType,
+      operation,
+      patientId,
+      targetProvider,
+      metadata
     );
+    await tx.wait();
 
-    // check that the aggregated events match the current value
-    let total = 0n;
-    for (const event of events) {
-      total += event.args.by;
-    }
+    expect(await registry.getTotalTransactions()).to.equal(1n);
 
-    expect(await counter.x()).to.equal(total);
+    const stats = await registry.getStats();
+    expect(stats._totalTransactions).to.equal(1n);
+    expect(stats._totalProviders).to.equal(1n);
   });
 });

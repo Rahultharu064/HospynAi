@@ -1,9 +1,5 @@
-import { network } from "hardhat";
-
-const { ethers } = await network.create({
-  network: "hardhatOp",
-  chainType: "op",
-});
+import hre from "hardhat";
+const { ethers } = hre;
 
 console.log("Sending transaction using the OP chain type");
 

@@ -2,7 +2,7 @@
   "name": "blockchain",
   "version": "2.0.0",
   "description": "VoiceMed Pro Blockchain Smart Contracts",
-  "type": "module",
+  "type":"module",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
@@ -17,14 +17,16 @@
     "size": "hardhat size-contracts"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts": "^4.9.3",
     "dotenv": "^16.4.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.0",
     "hardhat": "^2.19.0",
-    "hardhat-gas-reporter": "^2.0.0",
-    "solidity-coverage": "^0.8.0"
+    "hardhat-gas-reporter": "^1.0.8",
+    "solidity-coverage": "^0.8.0",
+    "ts-node": "10.9.2",
+    "typescript": "6.0.3"
   }
 }

@@ -219,7 +219,8 @@ contract MedicalRecordAnchor is IMedicalRecordAnchor, Ownable, Pausable, Reentra
 
         bytes32 batchId = keccak256(
             abi.encodePacked(
-                keccak256(abi.encodePacked(dataHashes)),
+                // Use abi.encode for arrays (abi.encodePacked doesn't support dynamic array types)
+                keccak256(abi.encode(dataHashes)),
                 block.timestamp,
                 msg.sender
             )

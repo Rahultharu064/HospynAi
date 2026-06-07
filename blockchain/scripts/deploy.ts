@@ -1,6 +1,12 @@
 import hardhat from "hardhat";
 const { ethers } = hardhat as any;
 import * as dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -50,8 +56,6 @@ async function main() {
   console.log("=".repeat(60));
 
   // Save addresses
-  const fs = require("fs");
-  const path = require("path");
   const addresses = {
     network: process.env.HARDHAT_NETWORK || "unknown",
     medicalRecordAnchor: await anchor.getAddress(),
