@@ -7,15 +7,7 @@ import { UserRole } from '@prisma/client';
 import prisma from '../config/prisma';
 import logger from '../utils/logger';
 
-// Extend Express Request interface
-declare global {
-  namespace Express {
-    interface Request {
-      user?: TokenPayload;
-      sessionId?: string;
-    }
-  }
-}
+// (Request augmentation moved to src/types/express.d.ts)
 
 /**
  * Authenticate user by verifying JWT token from Authorization header

@@ -9,6 +9,7 @@ const config_1 = require("../config");
 const errors_1 = require("../utils/errors");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const logger_1 = __importDefault(require("../utils/logger"));
+// (Request augmentation moved to src/types/express.d.ts)
 /**
  * Authenticate user by verifying JWT token from Authorization header
  */

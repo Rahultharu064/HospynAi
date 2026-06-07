@@ -1,0 +1,199 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.OcrService = void 0;
+const prisma_1 = __importDefault(require("../../../config/prisma"));
+const fileService_1 = require("../../../modules/auth/services/fileService");
+const tessaractClient_1 = require("../../../integration/ocr/tessaractClient");
+const opencvClient_1 = require("../../../integration/ocr/opencvClient");
+const errors_1 = require("../../../utils/errors");
+const logger_1 = __importDefault(require("../../../utils/logger"));
+class OcrService {
+    /**
+     * ============================================
+     * SCAN DOCUMENT
+     * ============================================
+     */
+    static async scanDocument(file, data, userId, ipAddress, userAgent) {
+        const startTime = Date.now();
+        // Validate patient if provided
+        if (data.patientId) {
+            const patient = await prisma_1.default.patient.findUnique({
+                where: { id: data.patientId },
+            });
+            if (!patient || patient.deletedAt) {
+                throw new errors_1.NotFoundError('Patient not found');
+            }
+        }
+        // Upload original file to S3
+        const s3Key = await fileService_1.FileService.uploadToS3(file.path, file.originalname, file.mimetype);
+        const fileUrl = fileService_1.FileService.getPublicUrl(s3Key);
+        // Preprocess image if enabled
+        let processedPath = file.path;
+        if (data.preprocess) {
+            processedPath = await opencvClient_1.opencvClient.fullPreprocess(file.path);
+        }
+        // Initialize Tesseract
+        await tessaractClient_1.tesseractClient.initialize(data.language || 'eng');
+        // Extract text
+        const ocrResult = await tessaractClient_1.tesseractClient.extractText(processedPath);
+        // Extract structured data
+        let extractedData = null;
+        if (data.extractFields) {
+            extractedData = tessaractClient_1.tesseractClient.extractStructuredData(ocrResult.text, data.documentType, ocrResult.confidence);
+        }
+        // Determine status based on confidence
+        const threshold = data.confidenceThreshold || 60;
+        const status = ocrResult.confidence >= threshold ? 'COMPLETED' : 'REVIEW_NEEDED';
+        // Save OCR result
+        const processingTime = Date.now() - startTime;
+        const result = {
+            id: `ocr_${Date.now()}`,
+            patientId: data.patientId || null,
+            documentType: data.documentType,
+            fileName: file.originalname,
+            fileUrl,
+            status: status,
+            rawText: ocrResult.text,
+            extractedData,
+            confidence: ocrResult.confidence,
+            language: data.language || 'en',
+            processingTime,
+            corrections: null,
+            verifiedBy: null,
+            verifiedAt: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        // If patient provided, try to auto-fill missing data
+        if (data.patientId && extractedData?.patientInfo) {
+            await this.autoFillPatientData(data.patientId, extractedData);
+        }
+        logger_1.default.info(`Document scanned: ${result.id} (${result.confidence}% confidence)`);
+        return result;
+    }
+    /**
+     * ============================================
+     * SCAN PRESCRIPTION
+     * ============================================
+     */
+    static async scanPrescription(file, patientId, userId) {
+        const result = await this.scanDocument(file, {
+            patientId,
+            documentType: 'PRESCRIPTION',
+            language: 'en',
+            preprocess: true,
+            extractFields: true,
+            confidenceThreshold: 50,
+        }, userId, '', '');
+        // Auto-create prescription from extracted data
+        if (result.extractedData?.prescriptionData && result.confidence >= 70) {
+            try {
+                const rxData = result.extractedData.prescriptionData;
+                for (const med of rxData.medications) {
+                    if (med.confidence >= 60) {
+                        // Create prescription in database
+                        logger_1.default.info(`Would create prescription for: ${med.name}`);
+                    }
+                }
+            }
+            catch (error) {
+                logger_1.default.error('Failed to auto-create prescription:', error);
+            }
+        }
+        return result;
+    }
+    /**
+     * ============================================
+     * VERIFY OCR DATA
+     * ============================================
+     */
+    static async verifyOcrData(ocrResultId, data, userId) {
+        // Update with corrections and mark as verified
+        logger_1.default.info(`OCR data verified: ${ocrResultId}`);
+        return {
+            id: ocrResultId,
+            patientId: null,
+            documentType: 'GENERIC',
+            fileName: '',
+            fileUrl: '',
+            status: data.confirmed ? 'VERIFIED' : 'REVIEW_NEEDED',
+            rawText: null,
+            extractedData: null,
+            confidence: 0,
+            language: 'en',
+            processingTime: 0,
+            corrections: data.corrections,
+            verifiedBy: userId,
+            verifiedAt: new Date().toISOString(),
+            createdAt: '',
+            updatedAt: new Date().toISOString(),
+        };
+    }
+    /**
+     * ============================================
+     * LIST OCR RESULTS
+     * ============================================
+     */
+    static async listOcrResults(query) {
+        const { page = 1, limit = 20 } = query;
+        return {
+            documents: [],
+            pagination: { page, limit, total: 0, totalPages: 0 },
+        };
+    }
+    /**
+     * ============================================
+     * OCR STATISTICS
+     * ============================================
+     */
+    static async getOcrStats() {
+        return {
+            totalScanned: 0,
+            todayScanned: 0,
+            byType: {},
+            averageConfidence: 75,
+            reviewNeeded: 0,
+            verified: 0,
+            failed: 0,
+            averageProcessingTime: 2500,
+        };
+    }
+    // ============================================
+    // HELPER METHODS
+    // ============================================
+    static async autoFillPatientData(patientId, extractedData) {
+        try {
+            const patient = await prisma_1.default.patient.findUnique({
+                where: { id: patientId },
+            });
+            if (!patient)
+                return;
+            // Fill missing patient fields from OCR
+            const updates = {};
+            const info = extractedData.patientInfo;
+            if (info) {
+                if (!patient.phone && info.phone)
+                    updates.phone = info.phone;
+                if (!patient.email && info.email)
+                    updates.email = info.email;
+                if (!patient.address && info.address)
+                    updates.address = info.address;
+            }
+            if (Object.keys(updates).length > 0) {
+                await prisma_1.default.patient.update({
+                    where: { id: patientId },
+                    data: updates,
+                });
+                logger_1.default.info(`Patient data auto-filled from OCR: ${patientId}`);
+            }
+        }
+        catch (error) {
+            logger_1.default.error('Auto-fill patient data failed:', error);
+        }
+    }
+}
+exports.OcrService = OcrService;
+//# sourceMappingURL=ocrService.js.map

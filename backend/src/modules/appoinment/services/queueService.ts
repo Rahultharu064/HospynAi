@@ -1,10 +1,10 @@
 import { AppointmentStatus, AppointmentType, Prisma } from '@prisma/client';
-import prisma from '../database/prisma';
-import { AuditService } from './audit.service';
-import { BadRequestError, NotFoundError } from '../utils/errors';
-import { QueueTokenInput } from '../validators/appointment.validator';
-import { QueueResponse, QueueListResponse } from '../types/appointment.types';
-import logger from '../utils/logger';
+import prisma from '../../../config/prisma'
+import { AuditService } from '../../auth/services/auditService';
+import { BadRequestError, NotFoundError } from '../../../utils/errors';
+import { QueueTokenInput } from '../validators/appointmentValidator';
+import { QueueResponse, QueueListResponse } from '../../../types/appointmentTypes';
+import logger from '../../../utils/logger';
 
 export class QueueService {
   /**
@@ -717,7 +717,7 @@ export class QueueService {
       try {
         // Send SMS reminder
         if (appointment.patient.phone) {
-          const { SmsService } = await import('./sms.service');
+          const { SmsService } = await import('../../auth/services/smsService');
           await SmsService.sendSms(
             appointment.patient.phone,
             `[VoiceMed Pro] Reminder: You have an appointment with Dr. ${appointment.doctor.firstName} ${appointment.doctor.lastName} tomorrow at ${appointment.startTime}. ID: ${appointment.appointmentId}`
@@ -726,7 +726,7 @@ export class QueueService {
 
         // Send email reminder
         if (appointment.patient.email) {
-          const { EmailService } = await import('./email.service');
+          const { EmailService } = await import('../../auth/services/emailService')
           await EmailService.sendMail(
             appointment.patient.email,
             'Appointment Reminder - VoiceMed Pro',

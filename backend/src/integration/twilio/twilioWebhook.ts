@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import twilio from 'twilio';
 import { config } from '../../config';
-import { CallingService } from '../../services/calling.service';
-import { AuditService } from '../../services/audit.service';
-import logger from '../../../utils/logger';
+import { CallingService } from '../../modules/callingAgent/services/callingService';
+import { AuditService } from '../../modules/auth/services/auditService';
+import logger from '../../utils/logger';
 
 export function validateTwilioSignature(req: Request, res: Response, next: NextFunction) {
   if (config.nodeEnv === 'development' || config.nodeEnv === 'test') {

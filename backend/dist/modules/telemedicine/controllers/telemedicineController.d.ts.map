@@ -1,0 +1,1 @@
+{"version":3,"file":"telemedicineController.d.ts","sourceRoot":"","sources":["../../../../src/modules/telemedicine/controllers/telemedicineController.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,QAAQ,EAAE,MAAM,SAAS,CAAC;AAQ5C,qBAAa,sBAAsB;IAEjC,MAAM,CAAC,aAAa,8EAYjB;IAGH,MAAM,CAAC,UAAU,8EAWd;IAGH,MAAM,CAAC,YAAY,8EAKhB;IAGH,MAAM,CAAC,KAAK,8EAIT;CACJ"}

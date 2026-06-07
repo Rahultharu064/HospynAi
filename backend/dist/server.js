@@ -36,17 +36,26 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const http_1 = __importDefault(require("http"));
+const socket_io_1 = require("socket.io");
 const app_1 = __importDefault(require("./app"));
 const config_1 = require("./config");
 const prisma_1 = __importStar(require("./config/prisma"));
 const logger_1 = __importDefault(require("./utils/logger"));
+// server.ts - Add chatbot WebSocket
+const chatbotSocket_1 = require("./utils/socket/chatbotSocket");
+const telemedicineSocket_1 = require("./utils/socket/telemedicineSocket");
 const startServer = async () => {
     try {
         await prisma_1.default.$connect();
         logger_1.default.info('📦 Database connected');
-        const server = app_1.default.listen(config_1.config.port, () => {
+        const server = http_1.default.createServer(app_1.default);
+        const io = new socket_io_1.Server(server);
+        server.listen(config_1.config.port, () => {
             logger_1.default.info(`🚀 Server running on port ${config_1.config.port} [${config_1.config.nodeEnv}]`);
         });
+        (0, chatbotSocket_1.setupChatbotSocket)(io);
+        (0, telemedicineSocket_1.setupTelemedicineSocket)(io);
         const gracefulShutdown = async (signal) => {
             logger_1.default.info(`${signal} received. Shutting down...`);
             server.close(async () => {

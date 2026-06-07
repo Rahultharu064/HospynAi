@@ -1,5 +1,6 @@
 import { CallOutcome, VoiceInteractionType } from '@prisma/client';
 import prisma from '../../../config/prisma';
+import { config } from '../../../config';
 import { twilioClient } from '../../../integration/twilio/twilioClient';
 import { gptClient } from '../../../integration/ai/aiClient';
 import { AuditService } from '../../auth/services/auditService';
@@ -189,10 +190,17 @@ export class CallingService {
   }
 
   static async getCallTranscript(callSid: string): Promise<CallTranscript | null> {
-    const callLog = await prisma.callLog.findUnique({ where: { callSid }, include: { voiceLogs: true } });
+    const callLog = await prisma.callLog.findUnique({ where: { callSid } });
     if (!callLog) throw new NotFoundError('Call not found');
 
-    const transcript = callLog.voiceLogs?.map((v) => v.transcript).filter(Boolean).join('\n') || '';
+    // Voice logs are stored separately and may contain callSid in metadata.
+    // Query voice logs that reference this callSid in their metadata JSON.
+    // Prisma JSON filters vary by version and typings; to avoid incompatible JSON filters
+    // fetch recent voice logs and filter in JS by checking metadata.callSid.
+    const allVoiceLogs = await prisma.voiceLog.findMany({ orderBy: { createdAt: 'asc' } });
+    const voiceLogs = allVoiceLogs.filter((v) => (v.metadata as any)?.callSid === callSid);
+
+    const transcript = voiceLogs.map((v) => v.transcript).filter(Boolean).join('\n') || '';
     return { callSid: callLog.callSid, transcript, segments: [], duration: callLog.duration || 0 };
   }
 

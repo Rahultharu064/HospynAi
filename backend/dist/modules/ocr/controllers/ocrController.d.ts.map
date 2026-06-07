@@ -1,0 +1,1 @@
+{"version":3,"file":"ocrController.d.ts","sourceRoot":"","sources":["../../../../src/modules/ocr/controllers/ocrController.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,QAAQ,EAAE,MAAM,SAAS,CAAC;AAU5C,qBAAa,aAAa;IAExB,MAAM,CAAC,YAAY,8EAehB;IAGH,MAAM,CAAC,gBAAgB,8EAapB;IAGH,MAAM,CAAC,UAAU,8EAWd;IAGH,MAAM,CAAC,WAAW,8EAOf;IAGH,MAAM,CAAC,KAAK,8EAIT;CACJ"}

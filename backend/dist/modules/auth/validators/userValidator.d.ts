@@ -169,8 +169,8 @@ export declare const userQuerySchema: z.ZodObject<{
         sortBy: z.ZodDefault<z.ZodOptional<z.ZodEnum<["firstName", "lastName", "email", "createdAt", "lastLoginAt"]>>>;
         sortOrder: z.ZodDefault<z.ZodOptional<z.ZodEnum<["asc", "desc"]>>>;
     }, "strip", z.ZodTypeAny, {
-        limit: number;
         page: number;
+        limit: number;
         sortBy: "email" | "firstName" | "lastName" | "lastLoginAt" | "createdAt";
         sortOrder: "asc" | "desc";
         search?: string | undefined;
@@ -184,15 +184,15 @@ export declare const userQuerySchema: z.ZodObject<{
         status?: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION" | undefined;
         organizationId?: string | undefined;
         branchId?: string | undefined;
-        limit?: string | undefined;
         page?: string | undefined;
+        limit?: string | undefined;
         sortBy?: "email" | "firstName" | "lastName" | "lastLoginAt" | "createdAt" | undefined;
         sortOrder?: "asc" | "desc" | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
     query: {
-        limit: number;
         page: number;
+        limit: number;
         sortBy: "email" | "firstName" | "lastName" | "lastLoginAt" | "createdAt";
         sortOrder: "asc" | "desc";
         search?: string | undefined;
@@ -208,8 +208,8 @@ export declare const userQuerySchema: z.ZodObject<{
         status?: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION" | undefined;
         organizationId?: string | undefined;
         branchId?: string | undefined;
-        limit?: string | undefined;
         page?: string | undefined;
+        limit?: string | undefined;
         sortBy?: "email" | "firstName" | "lastName" | "lastLoginAt" | "createdAt" | undefined;
         sortOrder?: "asc" | "desc" | undefined;
     };

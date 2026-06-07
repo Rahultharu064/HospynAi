@@ -1,14 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { TokenPayload } from '../types/authTypes';
 import { UserRole } from '@prisma/client';
-declare global {
-    namespace Express {
-        interface Request {
-            user?: TokenPayload;
-            sessionId?: string;
-        }
-    }
-}
 /**
  * Authenticate user by verifying JWT token from Authorization header
  */

@@ -44,6 +44,14 @@ export interface ChatResponse {
   finishReason: string;
 }
 
+export interface GenerateResponseResult {
+  response: string;
+  tokensUsed?: number;
+  action?: string | null;
+  data?: any;
+  suggestedActions?: any[];
+}
+
 export interface StreamingCallback {
   onToken: (token: string) => void;
   onComplete: (response: ChatResponse) => void;
@@ -296,6 +304,7 @@ export class GPTClient {
     entities: Record<string, any>;
     sentiment: 'positive' | 'negative' | 'neutral';
     urgency: 'routine' | 'urgent' | 'emergency';
+    interactionType?: string;
   }> {
     const prompt = `Analyze the following user message and extract intent, entities, sentiment, and urgency.
     
@@ -312,6 +321,7 @@ Respond with JSON:
     "doctors": [],
     "appointmentType": null
   },
+  "interactionType": "voice | text | dtmf | other",
   "sentiment": "positive | negative | neutral",
   "urgency": "routine | urgent | emergency"
 }`;
@@ -319,15 +329,56 @@ Respond with JSON:
     try {
       const response = await this.complete(prompt, { temperature: 0.1, maxTokens: 300 });
       return JSON.parse(response);
-    } catch {
+    } catch (error) {
       return {
         intent: 'GENERAL_INQUIRY',
         confidence: 0.5,
         entities: {},
         sentiment: 'neutral',
         urgency: 'routine',
+        interactionType: 'text',
       };
     }
+
+  }
+
+  /**
+   * High-level generate response used by the app.
+   */
+  async generateResponse(
+    prompt: string,
+    intent: string = 'GENERAL_INQUIRY',
+    context: Record<string, any> = {}
+  ): Promise<GenerateResponseResult> {
+    // Map a few known intent labels to system prompt categories
+    const intentMap: Record<string, 'GENERAL' | 'DOCTOR' | 'PATIENT' | 'TRIAGE'> = {
+      GENERAL_INQUIRY: 'GENERAL',
+      DOCTOR_INQUIRY: 'DOCTOR',
+      PATIENT_INQUIRY: 'PATIENT',
+      TRIAGE: 'TRIAGE',
+      SUMMARIZE_RECORDS: 'DOCTOR',
+    };
+
+    const systemContext = intentMap[intent] || 'GENERAL';
+
+    const userContent = (typeof context === 'object' && Object.keys(context).length > 0)
+      ? `${prompt}\n\nContext:\n${JSON.stringify(context)}`
+      : prompt;
+
+    const messages: ChatMessage[] = [
+      { role: 'system', content: this.getSystemPrompt(systemContext) },
+      { role: 'user', content: userContent },
+    ];
+
+    const chatResp = await this.chat(messages, { maxTokens: 1500, temperature: 0.7 });
+
+    return {
+      response: chatResp.message,
+      tokensUsed: chatResp.usage?.totalTokens || 0,
+      action: null,
+      data: chatResp.functionCall?.arguments || null,
+      suggestedActions: [],
+    };
   }
 
   /**
@@ -379,7 +430,7 @@ Respond with JSON:
     try {
       const response = await this.complete(prompt, { temperature: 0.1, maxTokens: 500 });
       return JSON.parse(response);
-    } catch {
+    } catch (error) {
       return { conditions: [], medications: [], procedures: [], measurements: [], dates: [] };
     }
   }
