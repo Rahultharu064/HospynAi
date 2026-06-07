@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { DoctorController } from '../controllers/doctor.controller';
-import { authenticate, authorize } from '../middleware/auth.middleware';
-import { validate } from '../middleware/validate.middleware';
+import { DoctorController } from '../controllers/doctorController';
+import { authenticate, authorize } from '../../../middleware/authMiddleware';
+import { validate } from '../../../middleware/validateMiddleware';
 import { rateLimit } from 'express-rate-limit';
 import { UserRole } from '@prisma/client';
 import {
@@ -11,7 +11,7 @@ import {
   doctorIdSchema,
   doctorQuerySchema,
   availabilityQuerySchema,
-} from '../validators/doctor.validator';
+} from '../validators/doctorValidator';
 
 const router = Router();
 

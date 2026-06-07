@@ -1,20 +1,20 @@
 import { Prisma, UserRole, UserStatus, AuthProvider } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import prisma from '../database/prisma';
-import { config } from '../config';
-import { EmailService } from './email.service';
-import { AuditService } from './audit.service';
+import prisma from '../../../config/prisma';
+import { config } from '../../../config';
+import { EmailService } from '../../auth/services/emailService';
+import { AuditService } from '../../auth/services/auditService';
 import {
   CreateDoctorInput,
   UpdateDoctorInput,
   UpdateScheduleInput,
   DoctorQueryInput,
-} from '../validators/doctor.validator';
+} from '../validators/doctorValidator';
 import {
   BadRequestError,
   NotFoundError,
   ConflictError,
-} from '../utils/errors';
+} from '../../../utils/errors';
 import {
   DoctorResponse,
   DoctorListResponse,
@@ -22,8 +22,8 @@ import {
   DayAvailability,
   TimeSlotResponse,
   DayScheduleResponse,
-} from '../types/doctor.types';
-import logger from '../utils/logger';
+} from '../../../types/doctorTypes';
+import logger from '../../../utils/logger';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

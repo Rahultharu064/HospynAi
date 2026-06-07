@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { ChatbotService } from '../services/chatbot.service';
-import { AsyncHandler } from '../middleware/error.middleware';
-import { BadRequestError, UnauthorizedError } from '../utils/errors';
-import { ChatMessageInput, AudioMessageInput, ChatHistoryInput, ClearHistoryInput } from '../validators/chatbot.validator';
+import { ChatbotService } from '../services/chatbotService';
+import { AsyncHandler } from '../../../middleware/errorMiddleware';
+import { BadRequestError, UnauthorizedError } from '../../../utils/errors';
+import { ChatMessageInput, AudioMessageInput, ChatHistoryInput, ClearHistoryInput } from '../validators/chatbotValidator';
 
 export class ChatbotController {
   // POST /api/v1/chatbot/message

@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
-import { DoctorService } from '../services/doctor.service';
-import { AsyncHandler } from '../middleware/error.middleware';
-import { BadRequestError, UnauthorizedError } from '../utils/errors';
+import { DoctorService } from '../services/doctorService';
+import { AsyncHandler } from '../../../middleware/errorMiddleware';
+import { BadRequestError, UnauthorizedError } from '../../../utils/errors';
 import {
   CreateDoctorInput,
   UpdateDoctorInput,
   UpdateScheduleInput,
   DoctorQueryInput,
-} from '../validators/doctor.validator';
+} from '../validators/doctorValidator';
 
 export class DoctorController {
   // POST /api/v1/doctors
