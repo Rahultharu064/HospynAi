@@ -22,7 +22,6 @@ const startServer = async () => {
 
     setupChatbotSocket(io);
     setupTelemedicineSocket(io);
-
     const gracefulShutdown = async (signal: string) => {
       logger.info(`${signal} received. Shutting down...`);
       server.close(async () => {
