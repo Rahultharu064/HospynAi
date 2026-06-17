@@ -91,6 +91,27 @@ export const config = {
     apiKey: process.env.OPENAI_API_KEY || '',
     embeddingModel: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
   },
+
+  blockchain: {
+    enabled: process.env.BLOCKCHAIN_ENABLED === 'true',
+    networkId: parseInt(
+      process.env.BLOCKCHAIN_NETWORK_ID ||
+        (process.env.NODE_ENV === 'production' ? '137' : '80002'),
+      10
+    ),
+    privateKey: process.env.BLOCKCHAIN_PRIVATE_KEY || '',
+    rpcUrl: process.env.BLOCKCHAIN_RPC_URL || '',
+    polygonMainnetRpc: process.env.POLYGON_MAINNET_RPC || 'https://polygon-rpc.com',
+    polygonAmoyRpc: process.env.POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology',
+    deploymentsFile: process.env.BLOCKCHAIN_DEPLOYMENTS_FILE || '',
+    defaultProviderAddress: process.env.BLOCKCHAIN_DEFAULT_PROVIDER_ADDRESS || '',
+    contracts: {
+      medicalRecordAnchor: process.env.MEDICAL_RECORD_ANCHOR_ADDRESS || '',
+      patientConsent: process.env.PATIENT_CONSENT_ADDRESS || '',
+      prescriptionVerifier: process.env.PRESCRIPTION_VERIFIER_ADDRESS || '',
+      medicalDataRegistry: process.env.MEDICAL_DATA_REGISTRY_ADDRESS || '',
+    },
+  },
   
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 };

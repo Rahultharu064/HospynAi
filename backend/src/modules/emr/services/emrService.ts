@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../../config/prisma';
+import { BlockchainService } from '../../blockchain/services/blockchainService';
+import { hashMedicalRecord } from '../../../utils/blockchainHash';
 import { AuditService } from '../../auth/services/auditService';
 import { EmailService } from '../../auth/services/emailService';
 import {
@@ -255,8 +257,13 @@ export class EMRService {
         include: this.getEMRInclude(),
       });
 
-      // Create blockchain record (hash anchoring)
-      await this.createBlockchainRecord(tx, signed.id, signed.patientId);
+      const blockchainRecordId = await this.createBlockchainRecord(
+        tx,
+        signed.id,
+        signed.patientId,
+        signed.patient.patientId,
+        signed.signedAt!
+      );
 
       await tx.auditLog.create({
         data: {
@@ -269,11 +276,16 @@ export class EMRService {
         },
       });
 
-      return signed;
+      return { signed, blockchainRecordId };
     });
 
-    logger.info(`EMR signed: ${id}`);
-    return this.formatEMRResponse(emr);
+    if (emr.blockchainRecordId) {
+      BlockchainService.submitPendingAnchor(emr.blockchainRecordId).catch((error) => {
+        logger.error(`EMR on-chain anchor failed for record ${emr.blockchainRecordId}:`, error);
+      });
+    }
+
+    return this.formatEMRResponse(emr.signed);
   }
 
   /**
@@ -415,14 +427,14 @@ export class EMRService {
   private static async createBlockchainRecord(
     tx: any,
     medicalRecordId: string,
-    patientId: string
-  ): Promise<void> {
-    // Generate SHA-256 hash of the medical record
-    const crypto = require('crypto');
-    const recordData = JSON.stringify({ medicalRecordId, patientId, timestamp: new Date().toISOString() });
-    const dataHash = crypto.createHash('sha256').update(recordData).digest('hex');
+    patientId: string,
+    patientPublicId: string,
+    signedAt: Date
+  ): Promise<string> {
+    const signedAtIso = signedAt.toISOString();
+    const dataHash = hashMedicalRecord(medicalRecordId, patientId, signedAtIso);
 
-    await tx.blockchainRecord.create({
+    const record = await tx.blockchainRecord.create({
       data: {
         patientId,
         medicalRecordId,
@@ -431,10 +443,13 @@ export class EMRService {
         status: 'PENDING',
         metadata: {
           recordId: medicalRecordId,
-          timestamp: new Date().toISOString(),
+          patientPublicId,
+          signedAt: signedAtIso,
         },
       },
     });
+
+    return record.id;
   }
 
   // ============================================

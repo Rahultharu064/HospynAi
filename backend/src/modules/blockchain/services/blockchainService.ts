@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Prisma, BlockchainRecordType } from '@prisma/client';
 import prisma from '../../../config/prisma';
+import { config } from '../../../config';
 import { polygonClient } from '../../../integration/blockchain/polygonClient';
 import { AuditService } from '../../auth/services/auditService';
 import {
@@ -20,21 +21,75 @@ import {
   ConsentResponse,
   BlockchainStats,
 } from '../../../types/blockchainTypes';
+import {
+  hashAnchorPayload,
+  hashConsentPayload,
+} from '../../../utils/blockchainHash';
 import logger from '../../../utils/logger';
 
 export class BlockchainService {
   /**
-   * ============================================
-   * ANCHOR RECORD HASH
-   * ============================================
+   * Submit a PENDING blockchain_records row to the chain (used after EMR sign).
    */
+  static async submitPendingAnchor(recordId: string): Promise<void> {
+    const record = await prisma.blockchainRecord.findUnique({
+      where: { id: recordId },
+      include: {
+        patient: { select: { patientId: true } },
+      },
+    });
+
+    if (!record || record.status !== 'PENDING' || !record.patient) {
+      return;
+    }
+
+    if (!polygonClient.isReady()) {
+      logger.warn(`Blockchain not ready — record ${recordId} stays PENDING`);
+      return;
+    }
+
+    try {
+      const result = await polygonClient.anchorHash(
+        record.dataHash,
+        record.recordType,
+        record.patient.patientId
+      );
+
+      if (!result) {
+        await prisma.blockchainRecord.update({
+          where: { id: recordId },
+          data: { status: 'FAILED' },
+        });
+        return;
+      }
+
+      await prisma.blockchainRecord.update({
+        where: { id: recordId },
+        data: {
+          txHash: result.txHash,
+          blockNumber: BigInt(result.blockNumber),
+          networkId: polygonClient.getNetworkId(),
+          status: 'CONFIRMED',
+          verifiedAt: new Date(),
+        },
+      });
+
+      logger.info(`Pending blockchain record confirmed on-chain: ${recordId}`);
+    } catch (error) {
+      await prisma.blockchainRecord.update({
+        where: { id: recordId },
+        data: { status: 'FAILED' },
+      });
+      throw error;
+    }
+  }
+
   static async anchorRecord(
     data: AnchorRecordInput,
     userId: string,
     ipAddress: string,
     userAgent: string
   ): Promise<BlockchainRecordResponse> {
-    // Validate patient
     const patient = await prisma.patient.findUnique({
       where: { id: data.patientId },
     });
@@ -42,7 +97,6 @@ export class BlockchainService {
       throw new NotFoundError('Patient not found');
     }
 
-    // Validate medical record if provided
     if (data.medicalRecordId) {
       const emr = await prisma.medicalRecord.findUnique({
         where: { id: data.medicalRecordId },
@@ -50,36 +104,39 @@ export class BlockchainService {
       if (!emr) throw new NotFoundError('Medical record not found');
     }
 
-    // Generate SHA-256 hash
-    const dataString = JSON.stringify({
+    const timestamp = new Date().toISOString();
+    const dataHash = hashAnchorPayload({
       patientId: data.patientId,
       medicalRecordId: data.medicalRecordId,
       recordType: data.recordType,
       data: data.data,
-      timestamp: new Date().toISOString(),
+      timestamp,
     });
-    const dataHash = crypto.createHash('sha256').update(dataString).digest('hex');
 
-    // Try to anchor on Polygon blockchain
     let txHash: string | null = null;
     let blockNumber: number | null = null;
     let networkId: number | null = null;
+    let status: 'PENDING' | 'CONFIRMED' | 'FAILED' = 'PENDING';
 
     if (polygonClient.isReady()) {
-      const result = await polygonClient.anchorHash(
-        dataHash,
-        data.recordType,
-        patient.patientId
-      );
+      try {
+        const result = await polygonClient.anchorHash(
+          dataHash,
+          data.recordType,
+          patient.patientId
+        );
 
-      if (result) {
-        txHash = result.txHash;
-        blockNumber = result.blockNumber;
-        networkId = 80002; // Amoy testnet
+        if (result) {
+          txHash = result.txHash;
+          blockNumber = result.blockNumber;
+          networkId = polygonClient.getNetworkId();
+          status = 'CONFIRMED';
+        }
+      } catch {
+        status = 'FAILED';
       }
     }
 
-    // Store in database
     const record = await prisma.$transaction(async (tx) => {
       const created = await tx.blockchainRecord.create({
         data: {
@@ -90,11 +147,13 @@ export class BlockchainService {
           txHash,
           blockNumber: blockNumber ? BigInt(blockNumber) : null,
           networkId,
-          status: txHash ? 'CONFIRMED' : 'PENDING',
+          status,
+          verifiedAt: status === 'CONFIRMED' ? new Date() : null,
           metadata: {
             ...data.metadata,
             anchoredBy: userId,
             dataSnapshot: data.data,
+            anchoredAt: timestamp,
           },
         },
         include: this.getBlockchainInclude(),
@@ -108,27 +167,20 @@ export class BlockchainService {
           resourceId: created.id,
           ipAddress,
           userAgent,
-          metadata: { dataHash, txHash, recordType: data.recordType },
+          metadata: { dataHash, txHash, recordType: data.recordType, status },
         },
       });
 
       return created;
     });
 
-    logger.info(`Blockchain record anchored: ${dataHash.substring(0, 16)}...`);
+    logger.info(`Blockchain record anchored: ${dataHash.substring(0, 16)}... (${status})`);
     return this.formatBlockchainResponse(record);
   }
 
-  /**
-   * ============================================
-   * VERIFY RECORD
-   * ============================================
-   */
   static async verifyRecord(data: VerifyRecordInput): Promise<VerificationResult> {
     let record: any = null;
-    let dataHash: string | null = null;
 
-    // Find record by ID, hash, or txHash
     if (data.recordId) {
       record = await prisma.blockchainRecord.findUnique({
         where: { id: data.recordId },
@@ -159,29 +211,27 @@ export class BlockchainService {
       };
     }
 
-    dataHash = record.dataHash;
+    const dataHash = record.dataHash;
+    let onChainValid = false;
 
-    // Verify on blockchain if client is available
-    let onChainResult = null;
     if (polygonClient.isReady() && dataHash) {
-      onChainResult = await polygonClient.verifyHash(dataHash);
+      const onChain = await polygonClient.verifyHash(dataHash);
+      onChainValid = onChain.exists && !onChain.isRevoked;
+
+      if (onChainValid && record.status !== 'CONFIRMED') {
+        await prisma.blockchainRecord.update({
+          where: { id: record.id },
+          data: { status: 'CONFIRMED', verifiedAt: new Date() },
+        });
+        record.status = 'CONFIRMED';
+      }
     }
 
-    const isVerified = record.txHash !== null && record.status === 'CONFIRMED';
+    const isVerified =
+      record.status === 'CONFIRMED' && (onChainValid || !!record.txHash);
     const explorerUrl = record.txHash
       ? polygonClient.getExplorerUrl(record.txHash)
       : null;
-
-    // Update verification status in database
-    if (onChainResult?.exists && record.status !== 'CONFIRMED') {
-      await prisma.blockchainRecord.update({
-        where: { id: record.id },
-        data: {
-          status: 'CONFIRMED',
-          verifiedAt: new Date(),
-        },
-      });
-    }
 
     return {
       isVerified,
@@ -193,16 +243,13 @@ export class BlockchainService {
       networkName: polygonClient.getNetworkName(),
       explorerUrl,
       message: isVerified
-        ? 'Record verified on blockchain ✓'
-        : 'Record not yet confirmed on blockchain',
+        ? 'Record verified on blockchain'
+        : record.status === 'PENDING'
+          ? 'Record pending on-chain confirmation'
+          : 'Record not confirmed on blockchain',
     };
   }
 
-  /**
-   * ============================================
-   * LIST BLOCKCHAIN RECORDS
-   * ============================================
-   */
   static async listRecords(query: BlockchainQueryInput): Promise<BlockchainListResponse> {
     const {
       page = 1,
@@ -247,11 +294,6 @@ export class BlockchainService {
     };
   }
 
-  /**
-   * ============================================
-   * GET PATIENT BLOCKCHAIN AUDIT TRAIL
-   * ============================================
-   */
   static async getPatientAuditTrail(patientId: string): Promise<BlockchainRecordResponse[]> {
     const records = await prisma.blockchainRecord.findMany({
       where: { patientId },
@@ -262,11 +304,6 @@ export class BlockchainService {
     return records.map((r) => this.formatBlockchainResponse(r));
   }
 
-  /**
-   * ============================================
-   * BLOCKCHAIN STATISTICS
-   * ============================================
-   */
   static async getStats(): Promise<BlockchainStats> {
     const [
       totalRecords,
@@ -280,12 +317,10 @@ export class BlockchainService {
       prisma.blockchainRecord.count({ where: { status: 'CONFIRMED' } }),
       prisma.blockchainRecord.count({ where: { status: 'PENDING' } }),
       prisma.blockchainRecord.count({ where: { status: 'FAILED' } }),
-
       prisma.blockchainRecord.groupBy({
         by: ['recordType'],
         _count: true,
       }),
-
       prisma.blockchainRecord.findMany({
         where: { txHash: { not: null } },
         orderBy: { createdAt: 'desc' },
@@ -311,7 +346,7 @@ export class BlockchainService {
       totalPending,
       totalFailed,
       byRecordType: byTypeMap,
-      averageConfirmationTime: 5.2, // seconds (placeholder)
+      averageConfirmationTime: 0,
       successRate: totalRecords > 0 ? (totalVerified / totalRecords) * 100 : 0,
       recentTransactions: recentTransactions.map((tx) => ({
         txHash: tx.txHash!,
@@ -321,70 +356,139 @@ export class BlockchainService {
         timestamp: tx.createdAt.toISOString(),
         explorerUrl: polygonClient.getExplorerUrl(tx.txHash!),
       })),
+      blockchainEnabled: config.blockchain.enabled,
+      chainReady: polygonClient.isReady(),
+      networkName: polygonClient.getNetworkName(),
+      networkId: polygonClient.getNetworkId(),
     };
   }
 
-  /**
-   * ============================================
-   * CONSENT MANAGEMENT
-   * ============================================
-   */
   static async grantConsent(
     data: ConsentInput,
     userId: string
   ): Promise<ConsentResponse> {
-    // In production, this would create a consent record and anchor it on blockchain
-    const consent = {
-      id: `consent_${Date.now()}`,
-      patientId: data.patientId,
-      providerId: data.providerId || null,
+    const patient = await prisma.patient.findUnique({
+      where: { id: data.patientId },
+    });
+    if (!patient || patient.deletedAt) {
+      throw new NotFoundError('Patient not found');
+    }
+
+    const providerAddress = polygonClient.getDefaultProviderAddress();
+    if (!providerAddress || providerAddress === ethersZero()) {
+      throw new BadRequestError('Blockchain provider address is not configured');
+    }
+
+    const grantedAt = new Date().toISOString();
+    const dataHash = hashConsentPayload({
+      patientId: patient.patientId,
+      providerAddress,
       recordType: data.recordType,
       accessLevel: data.accessLevel,
-      status: 'ACTIVE',
-      expiresAt: data.expiresAt || null,
-      purpose: data.purpose || null,
-      grantedAt: new Date().toISOString(),
-      revokedAt: null,
-      revokeReason: null,
-      txHash: null,
-      createdAt: new Date().toISOString(),
-    };
+      grantedAt,
+    });
 
-    logger.info(`Consent granted: ${consent.id}`);
-    return consent;
+    const expiresAtUnix = data.expiresAt
+      ? Math.floor(new Date(data.expiresAt).getTime() / 1000)
+      : 0;
+
+    let txHash: string | null = null;
+    let onChainConsentId: string | null = null;
+    let status: 'ACTIVE' | 'PENDING' | 'FAILED' = 'PENDING';
+
+    if (polygonClient.isConsentReady()) {
+      try {
+        const result = await polygonClient.grantConsent(
+          patient.patientId,
+          providerAddress,
+          data.recordType,
+          data.accessLevel,
+          expiresAtUnix
+        );
+        if (result) {
+          txHash = result.txHash;
+          onChainConsentId = result.onChainConsentId;
+          status = 'ACTIVE';
+        }
+      } catch {
+        status = 'FAILED';
+      }
+    } else if (!config.blockchain.enabled) {
+      status = 'ACTIVE';
+    }
+
+    const record = await prisma.blockchainRecord.create({
+      data: {
+        patientId: data.patientId,
+        recordType: 'CONSENT',
+        dataHash,
+        txHash,
+        networkId: txHash ? polygonClient.getNetworkId() : null,
+        status: status === 'ACTIVE' ? 'CONFIRMED' : status === 'FAILED' ? 'FAILED' : 'PENDING',
+        metadata: {
+          consentType: 'PATIENT_PROVIDER',
+          providerId: data.providerId ?? null,
+          providerAddress,
+          recordType: data.recordType,
+          accessLevel: data.accessLevel,
+          purpose: data.purpose ?? null,
+          expiresAt: data.expiresAt ?? null,
+          onChainConsentId,
+          grantedBy: userId,
+          grantedAt,
+          consentStatus: status,
+        },
+      },
+    });
+
+    logger.info(`Consent recorded: ${record.id} (${status})`);
+    return this.formatConsentResponse(record);
   }
 
-  /**
-   * ============================================
-   * REVOKE CONSENT
-   * ============================================
-   */
   static async revokeConsent(
     consentId: string,
     reason: string | null,
     userId: string
   ): Promise<ConsentResponse> {
-    logger.info(`Consent revoked: ${consentId}`);
-    return {
-      id: consentId,
-      patientId: '',
-      providerId: null,
-      recordType: '',
-      accessLevel: 'READ',
-      status: 'REVOKED',
-      expiresAt: null,
-      purpose: null,
-      grantedAt: '',
-      revokedAt: new Date().toISOString(),
-      revokeReason: reason,
-      txHash: null,
-      createdAt: '',
-    };
-  }
+    const record = await prisma.blockchainRecord.findFirst({
+      where: { id: consentId, recordType: 'CONSENT' },
+    });
 
-  // ============================================
-  // HELPER METHODS
-  // ============================================
+    if (!record) {
+      throw new NotFoundError('Consent record not found');
+    }
+
+    const metadata = (record.metadata as Record<string, any>) || {};
+    const onChainConsentId = metadata.onChainConsentId as string | undefined;
+
+    let txHash = record.txHash;
+
+    if (onChainConsentId && polygonClient.isConsentReady()) {
+      const revokeTx = await polygonClient.revokeConsent(
+        onChainConsentId,
+        reason || 'Revoked via API'
+      );
+      if (revokeTx) txHash = revokeTx;
+    }
+
+    const updated = await prisma.blockchainRecord.update({
+      where: { id: record.id },
+      data: {
+        status: 'REVOKED',
+        metadata: {
+          ...metadata,
+          consentStatus: 'REVOKED',
+          revokedAt: new Date().toISOString(),
+          revokeReason: reason,
+          revokedBy: userId,
+          revokeTxHash: txHash,
+        },
+      },
+    });
+
+    logger.info(`Consent revoked: ${consentId}`);
+    return this.formatConsentResponse(updated);
+  }
 
   private static getBlockchainInclude(): Prisma.BlockchainRecordInclude {
     return {
@@ -425,4 +529,27 @@ export class BlockchainService {
       createdAt: record.createdAt.toISOString(),
     };
   }
+
+  private static formatConsentResponse(record: any): ConsentResponse {
+    const metadata = (record.metadata as Record<string, any>) || {};
+    return {
+      id: record.id,
+      patientId: record.patientId,
+      providerId: metadata.providerId ?? null,
+      recordType: metadata.recordType ?? '',
+      accessLevel: metadata.accessLevel ?? 'READ',
+      status: metadata.consentStatus ?? record.status,
+      expiresAt: metadata.expiresAt ?? null,
+      purpose: metadata.purpose ?? null,
+      grantedAt: metadata.grantedAt ?? record.createdAt.toISOString(),
+      revokedAt: metadata.revokedAt ?? null,
+      revokeReason: metadata.revokeReason ?? null,
+      txHash: record.txHash,
+      createdAt: record.createdAt.toISOString(),
+    };
+  }
+}
+
+function ethersZero(): string {
+  return '0x0000000000000000000000000000000000000000';
 }

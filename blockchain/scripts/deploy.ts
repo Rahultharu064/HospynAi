@@ -75,6 +75,28 @@ async function main() {
     JSON.stringify(addresses, null, 2)
   );
 
+  // Backend .env snippet for copy-paste
+  const chainId =
+    process.env.HARDHAT_NETWORK === "polygon"
+      ? 137
+      : process.env.HARDHAT_NETWORK === "amoy"
+        ? 80002
+        : 31337;
+
+  console.log("\n📋 Add to backend/.env:");
+  console.log("─".repeat(60));
+  console.log("BLOCKCHAIN_ENABLED=true");
+  console.log(`BLOCKCHAIN_NETWORK_ID=${chainId}`);
+  if (process.env.HARDHAT_NETWORK === "localhost" || process.env.HARDHAT_NETWORK === "hardhat") {
+    console.log("BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545");
+  }
+  console.log(`BLOCKCHAIN_DEPLOYMENTS_FILE=../blockchain/deployments/${addresses.network}.json`);
+  console.log(`MEDICAL_RECORD_ANCHOR_ADDRESS=${addresses.medicalRecordAnchor}`);
+  console.log(`PATIENT_CONSENT_ADDRESS=${addresses.patientConsent}`);
+  console.log(`PRESCRIPTION_VERIFIER_ADDRESS=${addresses.prescriptionVerifier}`);
+  console.log(`MEDICAL_DATA_REGISTRY_ADDRESS=${addresses.medicalDataRegistry}`);
+  console.log("─".repeat(60));
+
   console.log("📝 Deployment addresses saved to deployments/");
 }
 
