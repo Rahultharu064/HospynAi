@@ -1,5 +1,19 @@
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
+import { config as loadEnv } from "dotenv";
+import { existsSync } from "fs";
+import path from "path";
+
+// Load before network accounts are resolved (deploy.ts runs too late).
+for (const envPath of [
+  path.join(process.cwd(), ".env"),
+  path.join(process.cwd(), "../backend/.env"),
+]) {
+  if (existsSync(envPath)) {
+    loadEnv({ path: envPath });
+    if (process.env.BLOCKCHAIN_PRIVATE_KEY) break;
+  }
+}
 
 export default {
   solidity: {

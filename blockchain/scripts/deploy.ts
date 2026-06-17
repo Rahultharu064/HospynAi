@@ -11,9 +11,47 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  const deployer = signers[0];
+  if (!deployer) {
+    throw new Error(
+      "No deployer account found. Set BLOCKCHAIN_PRIVATE_KEY in blockchain/.env or backend/.env:\n" +
+        "  BLOCKCHAIN_PRIVATE_KEY=0x<your-wallet-private-key>\n" +
+        "  POLYGON_AMOY_RPC=https://rpc-amoy.polygon.technology\n" +
+        "Fund the wallet with test MATIC on Amoy before deploying."
+    );
+  }
+
   console.log("Deploying contracts with account:", deployer.address);
-  console.log("Account balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)));
+
+  const balance = await ethers.provider.getBalance(deployer.address);
+  const balanceMatic = ethers.formatEther(balance);
+  console.log("Account balance:", balanceMatic, "MATIC");
+
+  const networkName = process.env.HARDHAT_NETWORK || "unknown";
+  const minBalanceWei = ethers.parseEther("0.15");
+  if (balance < minBalanceWei) {
+    const explorerBase =
+      networkName === "amoy"
+        ? "https://amoy.polygonscan.com/address"
+        : networkName === "polygon"
+          ? "https://polygonscan.com/address"
+          : null;
+
+    throw new Error(
+      `Insufficient MATIC for deployment (have ${balanceMatic}, need ~0.15+ MATIC).\n\n` +
+        `Send test MATIC to: ${deployer.address}\n\n` +
+        (networkName === "amoy"
+          ? "Amoy faucets:\n" +
+            "  • https://faucet.polygon.technology/ (select Polygon Amoy)\n" +
+            "  • https://www.alchemy.com/faucets/polygon-amoy\n\n" +
+            (explorerBase ? `Check balance: ${explorerBase}/${deployer.address}\n\n` : "")
+          : networkName === "polygon"
+            ? "Fund this wallet with MATIC on Polygon mainnet.\n\n"
+            : "") +
+        "Wait 1–2 minutes after the faucet, then run deploy again."
+    );
+  }
 
   const platformWallet = process.env.PLATFORM_WALLET || deployer.address;
 
