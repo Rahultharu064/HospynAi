@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ChatbotController } from '../controllers/chatbotController'
 import { authenticate, optionalAuth } from '../../../middleware/authMiddleware';
-import { upload } from '../../../middleware/uploadMiddleware';
+import { uploadAudio } from '../../../middleware/uploadMiddleware';
 import { validate } from '../../../middleware/validateMiddleware';
 import { rateLimit } from 'express-rate-limit';
 import {
@@ -36,7 +36,7 @@ router.post('/stream',
 router.post('/audio',
   chatbotLimiter,
   authenticate,
-  upload.single('audio'),
+  uploadAudio,
   validate({ body: audioMessageSchema.shape.body }),
   ChatbotController.sendAudio
 );

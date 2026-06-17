@@ -45,7 +45,9 @@ function setupChatbotSocket(io) {
                     message: data.message,
                     sessionId: data.sessionId,
                     patientId: data.patientId,
-                    context: data.context,
+                    context: data.context || 'GENERAL',
+                    language: 'en',
+                    stream: false,
                 }, user.userId, socket.handshake.address);
                 socket.emit('typing', { status: false });
                 socket.emit('message-received', result);
@@ -65,7 +67,8 @@ function setupChatbotSocket(io) {
                     message: data.message,
                     sessionId: data.sessionId,
                     patientId: data.patientId,
-                    context: data.context,
+                    context: data.context || 'GENERAL',
+                    language: 'en',
                     stream: true,
                 }, user.userId, {
                     onToken: (token) => {
@@ -91,11 +94,12 @@ function setupChatbotSocket(io) {
                 socket.emit('processing-audio', { status: true });
                 const audioBuffer = Buffer.from(data.audio, 'base64');
                 const result = await chatbotService_1.ChatbotService.processAudioMessage(audioBuffer, {
-                    format: data.format,
+                    format: data.format || 'webm',
+                    language: 'en',
                     sessionId: data.sessionId,
                     patientId: data.patientId,
-                    context: data.context,
-                }, user.userId);
+                    context: data.context || 'GENERAL',
+                }, user.userId, socket.handshake.address);
                 socket.emit('processing-audio', { status: false });
                 socket.emit('audio-response', result);
             }
@@ -112,6 +116,8 @@ function setupChatbotSocket(io) {
                 const history = await chatbotService_1.ChatbotService.getChatHistory({
                     sessionId: data.sessionId,
                     patientId: data.patientId,
+                    page: 1,
+                    limit: 50,
                 });
                 socket.emit('chat-history', history);
             }

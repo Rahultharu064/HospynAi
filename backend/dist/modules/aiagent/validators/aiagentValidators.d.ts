@@ -214,14 +214,14 @@ export declare const ragQuerySchema: z.ZodObject<{
         maxResults: number;
         includeCitations: boolean;
         patientId?: string | null | undefined;
-        context?: Record<string, any> | null | undefined;
         sourceType?: "CUSTOM" | "FAQ" | "MEDICAL_GUIDE" | "POLICY" | "RESEARCH" | undefined;
+        context?: Record<string, any> | null | undefined;
     }, {
         query: string;
         patientId?: string | null | undefined;
         minRelevance?: number | undefined;
-        context?: Record<string, any> | null | undefined;
         sourceType?: "CUSTOM" | "FAQ" | "MEDICAL_GUIDE" | "POLICY" | "RESEARCH" | undefined;
+        context?: Record<string, any> | null | undefined;
         maxResults?: number | undefined;
         includeCitations?: boolean | undefined;
     }>;
@@ -232,16 +232,16 @@ export declare const ragQuerySchema: z.ZodObject<{
         maxResults: number;
         includeCitations: boolean;
         patientId?: string | null | undefined;
-        context?: Record<string, any> | null | undefined;
         sourceType?: "CUSTOM" | "FAQ" | "MEDICAL_GUIDE" | "POLICY" | "RESEARCH" | undefined;
+        context?: Record<string, any> | null | undefined;
     };
 }, {
     body: {
         query: string;
         patientId?: string | null | undefined;
         minRelevance?: number | undefined;
-        context?: Record<string, any> | null | undefined;
         sourceType?: "CUSTOM" | "FAQ" | "MEDICAL_GUIDE" | "POLICY" | "RESEARCH" | undefined;
+        context?: Record<string, any> | null | undefined;
         maxResults?: number | undefined;
         includeCitations?: boolean | undefined;
     };

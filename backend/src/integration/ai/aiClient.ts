@@ -1,14 +1,22 @@
 import OpenAI from 'openai';
+import { config } from '../../config';
+import { BadRequestError } from '../../utils/errors';
 import logger from '../../utils/logger';
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'function';
-  content: string;
+  role: 'system' | 'user' | 'assistant' | 'function' | 'tool';
+  content: string | null;
   name?: string;
+  tool_call_id?: string;
   function_call?: {
     name: string;
     arguments: string;
   };
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
 }
 
 export interface ChatCompletionOptions {
@@ -33,6 +41,7 @@ export interface ChatResponse {
   message: string;
   role: string;
   functionCall?: {
+    id: string;
     name: string;
     arguments: Record<string, any>;
   };
@@ -58,9 +67,8 @@ export interface StreamingCallback {
   onError: (error: Error) => void;
 }
 
-// Medical system prompts
 const SYSTEM_PROMPTS = {
-  GENERAL: `You are HospynAi, a professional medical AI assistant. 
+  GENERAL: `You are HospynAi, a professional medical AI assistant.
 You provide helpful, accurate, and empathetic healthcare information.
 Always include appropriate medical disclaimers when giving health advice.
 Never provide definitive diagnoses - always recommend consulting healthcare professionals.
@@ -84,7 +92,6 @@ Categorize as: ROUTINE (see doctor within days), URGENT (see doctor within 24 ho
 Ask relevant follow-up questions to better assess the situation.`,
 };
 
-// Medical functions for function calling
 const MEDICAL_FUNCTIONS: ChatFunction[] = [
   {
     name: 'schedule_appointment',
@@ -140,63 +147,151 @@ const MEDICAL_FUNCTIONS: ChatFunction[] = [
       required: ['query'],
     },
   },
-  {
-    name: 'create_prescription',
-    description: 'Create a new prescription',
-    parameters: {
-      type: 'object',
-      properties: {
-        patientId: { type: 'string' },
-        drugName: { type: 'string' },
-        dosage: { type: 'string' },
-        frequency: { type: 'string' },
-        duration: { type: 'string' },
-      },
-      required: ['patientId', 'drugName', 'dosage', 'frequency', 'duration'],
-    },
-  },
 ];
 
-export class GPTClient {
-  private openai: OpenAI;
-  private defaultModel = 'gpt-4o';
+/** Extract JSON from LLM output that may include markdown fences */
+export function extractJsonFromLLM(text: string): Record<string, any> {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) {
+      return JSON.parse(fenced[1].trim());
+    }
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    }
+    throw new Error('No JSON object found in LLM response');
+  }
+}
+
+/**
+ * Groq-backed LLM client (OpenAI-compatible API).
+ * Used for chat, intent classification, streaming, and tool calling.
+ */
+export class LLMClient {
+  private client: OpenAI;
+  private defaultModel: string;
+  private configured: boolean;
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || '',
+    this.defaultModel = config.groq.model;
+    this.configured = Boolean(config.groq.apiKey);
+    this.client = new OpenAI({
+      apiKey: config.groq.apiKey || 'not-configured',
+      baseURL: config.groq.baseUrl,
+    });
+
+    if (!this.configured) {
+      logger.warn('GROQ_API_KEY is not set — AI chatbot and voice features will not work');
+    }
+  }
+
+  isConfigured(): boolean {
+    return this.configured;
+  }
+
+  private ensureConfigured(): void {
+    if (!this.configured) {
+      throw new BadRequestError('AI service is not configured. Set GROQ_API_KEY in environment variables.');
+    }
+  }
+
+  private functionsToTools(functions?: ChatFunction[]) {
+    if (!functions?.length) return undefined;
+    return functions.map((fn) => ({
+      type: 'function' as const,
+      function: fn,
+    }));
+  }
+
+  private normalizeMessages(messages: ChatMessage[]): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+    return messages.map((msg) => {
+      if (msg.role === 'tool' && msg.tool_call_id) {
+        return {
+          role: 'tool' as const,
+          content: msg.content || '',
+          tool_call_id: msg.tool_call_id,
+        };
+      }
+
+      if (msg.role === 'function') {
+        return {
+          role: 'tool' as const,
+          content: msg.content || '',
+          tool_call_id: msg.name || 'tool_call',
+        };
+      }
+
+      if (msg.tool_calls?.length) {
+        return {
+          role: 'assistant' as const,
+          content: msg.content,
+          tool_calls: msg.tool_calls,
+        };
+      }
+
+      return {
+        role: msg.role as 'system' | 'user' | 'assistant',
+        content: msg.content || '',
+        ...(msg.name ? { name: msg.name } : {}),
+      };
     });
   }
 
-  /**
-   * Complete chat with context
-   */
-  async chat(
-    messages: ChatMessage[],
-    options: ChatCompletionOptions = {}
-  ): Promise<ChatResponse> {
+  private parseToolCall(message: OpenAI.Chat.Completions.ChatCompletionMessage | undefined) {
+    if (!message) return undefined;
+
+    if (message.tool_calls?.length) {
+      const call = message.tool_calls[0];
+      if (call.type === 'function') {
+        return {
+          id: call.id,
+          name: call.function.name,
+          arguments: JSON.parse(call.function.arguments || '{}'),
+        };
+      }
+    }
+
+    const legacy = (message as any).function_call;
+    if (legacy?.name) {
+      return {
+        id: 'legacy_call',
+        name: legacy.name,
+        arguments: JSON.parse(legacy.arguments || '{}'),
+      };
+    }
+
+    return undefined;
+  }
+
+  async chat(messages: ChatMessage[], options: ChatCompletionOptions = {}): Promise<ChatResponse> {
+    this.ensureConfigured();
+
     try {
-      const response = await this.openai.chat.completions.create({
+      const tools = this.functionsToTools(options.functions);
+      const response = await this.client.chat.completions.create({
         model: options.model || this.defaultModel,
-        messages: messages as any,
+        messages: this.normalizeMessages(messages),
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens || 2000,
         top_p: options.topP || 1,
         frequency_penalty: options.frequencyPenalty || 0,
         presence_penalty: options.presencePenalty || 0,
-        functions: options.functions,
-        function_call: options.functionCall as any,
+        ...(tools
+          ? {
+              tools,
+              tool_choice: options.functionCall === 'none' ? 'none' : 'auto',
+            }
+          : {}),
       });
 
       const choice = response.choices[0];
       const message = choice?.message;
-
-      let functionCall: any = undefined;
-      if (message?.function_call) {
-        functionCall = {
-          name: message.function_call.name,
-          arguments: JSON.parse(message.function_call.arguments || '{}'),
-        };
-      }
+      const functionCall = this.parseToolCall(message);
 
       return {
         message: message?.content || '',
@@ -210,28 +305,25 @@ export class GPTClient {
         finishReason: choice?.finish_reason || 'stop',
       };
     } catch (error) {
-      logger.error('GPT chat completion failed:', error);
+      logger.error('Groq chat completion failed:', error);
       throw error;
     }
   }
 
-  /**
-   * Stream chat completion
-   */
   async streamChat(
     messages: ChatMessage[],
     callbacks: StreamingCallback,
     options: ChatCompletionOptions = {}
   ): Promise<void> {
+    this.ensureConfigured();
+
     try {
-      const stream = await this.openai.chat.completions.create({
+      const stream = await this.client.chat.completions.create({
         model: options.model || this.defaultModel,
-        messages: messages as any,
+        messages: this.normalizeMessages(messages),
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens || 2000,
         stream: true,
-        functions: options.functions,
-        function_call: options.functionCall as any,
       });
 
       let fullContent = '';
@@ -243,7 +335,6 @@ export class GPTClient {
           fullContent += content;
           callbacks.onToken(content);
         }
-        
         if (chunk.choices[0]?.finish_reason) {
           finishReason = chunk.choices[0].finish_reason;
         }
@@ -257,27 +348,18 @@ export class GPTClient {
       });
     } catch (error: any) {
       callbacks.onError(error);
-      logger.error('GPT stream chat failed:', error);
+      logger.error('Groq stream chat failed:', error);
     }
   }
 
-  /**
-   * Get system prompt based on context
-   */
   getSystemPrompt(context: 'GENERAL' | 'DOCTOR' | 'PATIENT' | 'TRIAGE'): string {
     return SYSTEM_PROMPTS[context] || SYSTEM_PROMPTS.GENERAL;
   }
 
-  /**
-   * Get medical functions for function calling
-   */
   getMedicalFunctions(): ChatFunction[] {
     return MEDICAL_FUNCTIONS;
   }
 
-  /**
-   * Simple text completion (non-streaming)
-   */
   async complete(
     prompt: string,
     options: { temperature?: number; maxTokens?: number; systemPrompt?: string } = {}
@@ -295,9 +377,6 @@ export class GPTClient {
     return response.message;
   }
 
-  /**
-   * Classify intent from user message
-   */
   async classifyIntent(message: string): Promise<{
     intent: string;
     confidence: number;
@@ -307,13 +386,13 @@ export class GPTClient {
     interactionType?: string;
   }> {
     const prompt = `Analyze the following user message and extract intent, entities, sentiment, and urgency.
-    
+
 Message: "${message}"
 
-Respond with JSON:
+Respond with JSON only (no markdown):
 {
   "intent": "BOOK_APPOINTMENT | CHECK_SYMPTOMS | PRESCRIPTION_QUERY | GENERAL_INQUIRY | EMERGENCY | MEDICAL_ADVICE | BILLING | OTHER",
-  "confidence": 0.0-1.0,
+  "confidence": 0.0,
   "entities": {
     "symptoms": [],
     "medications": [],
@@ -327,9 +406,18 @@ Respond with JSON:
 }`;
 
     try {
-      const response = await this.complete(prompt, { temperature: 0.1, maxTokens: 300 });
-      return JSON.parse(response);
+      const response = await this.complete(prompt, { temperature: 0.1, maxTokens: 400 });
+      const parsed = extractJsonFromLLM(response);
+      return {
+        intent: parsed.intent || 'GENERAL_INQUIRY',
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+        entities: parsed.entities || {},
+        sentiment: parsed.sentiment || 'neutral',
+        urgency: parsed.urgency || 'routine',
+        interactionType: parsed.interactionType || 'text',
+      };
     } catch (error) {
+      logger.warn('Intent classification failed, using defaults:', error);
       return {
         intent: 'GENERAL_INQUIRY',
         confidence: 0.5,
@@ -339,31 +427,27 @@ Respond with JSON:
         interactionType: 'text',
       };
     }
-
   }
 
-  /**
-   * High-level generate response used by the app.
-   */
   async generateResponse(
     prompt: string,
     intent: string = 'GENERAL_INQUIRY',
     context: Record<string, any> = {}
   ): Promise<GenerateResponseResult> {
-    // Map a few known intent labels to system prompt categories
     const intentMap: Record<string, 'GENERAL' | 'DOCTOR' | 'PATIENT' | 'TRIAGE'> = {
       GENERAL_INQUIRY: 'GENERAL',
       DOCTOR_INQUIRY: 'DOCTOR',
       PATIENT_INQUIRY: 'PATIENT',
       TRIAGE: 'TRIAGE',
+      EMERGENCY: 'TRIAGE',
       SUMMARIZE_RECORDS: 'DOCTOR',
     };
 
     const systemContext = intentMap[intent] || 'GENERAL';
-
-    const userContent = (typeof context === 'object' && Object.keys(context).length > 0)
-      ? `${prompt}\n\nContext:\n${JSON.stringify(context)}`
-      : prompt;
+    const userContent =
+      typeof context === 'object' && Object.keys(context).length > 0
+        ? `${prompt}\n\nContext:\n${JSON.stringify(context)}`
+        : prompt;
 
     const messages: ChatMessage[] = [
       { role: 'system', content: this.getSystemPrompt(systemContext) },
@@ -372,24 +456,57 @@ Respond with JSON:
 
     const chatResp = await this.chat(messages, { maxTokens: 1500, temperature: 0.7 });
 
+    let action: string | null = null;
+    if (intent === 'EMERGENCY' || chatResp.message.toLowerCase().includes('emergency')) {
+      action = 'ESCALATE';
+    }
+
     return {
       response: chatResp.message,
       tokensUsed: chatResp.usage?.totalTokens || 0,
-      action: null,
+      action,
       data: chatResp.functionCall?.arguments || null,
       suggestedActions: [],
     };
   }
 
-  /**
-   * Generate medical summary
-   */
-  async generateMedicalSummary(
-    patientData: any,
-    records: any[]
-  ): Promise<string> {
+  async analyzeSymptoms(symptoms: string[]): Promise<{
+    triage: 'routine' | 'urgent' | 'emergency';
+    recommendation: string;
+    followUpQuestions: string[];
+  }> {
+    const prompt = `Analyze these symptoms for triage: ${symptoms.join(', ')}
+
+Respond with JSON only:
+{
+  "triage": "routine | urgent | emergency",
+  "recommendation": "brief clinical recommendation",
+  "followUpQuestions": ["question1", "question2"]
+}`;
+
+    try {
+      const response = await this.complete(prompt, {
+        temperature: 0.2,
+        maxTokens: 500,
+        systemPrompt: SYSTEM_PROMPTS.TRIAGE,
+      });
+      return extractJsonFromLLM(response) as {
+        triage: 'routine' | 'urgent' | 'emergency';
+        recommendation: string;
+        followUpQuestions: string[];
+      };
+    } catch {
+      return {
+        triage: 'routine',
+        recommendation: 'Please schedule a consultation with a healthcare provider.',
+        followUpQuestions: ['How long have you had these symptoms?'],
+      };
+    }
+  }
+
+  async generateMedicalSummary(patientData: any, records: any[]): Promise<string> {
     const prompt = `Generate a concise medical summary for the following patient data and records.
-    
+
 Patient: ${JSON.stringify(patientData)}
 Records: ${JSON.stringify(records)}
 
@@ -404,9 +521,6 @@ Provide a professional clinical summary including:
     return this.complete(prompt, { temperature: 0.3, maxTokens: 1000 });
   }
 
-  /**
-   * Extract medical entities from text
-   */
   async extractMedicalEntities(text: string): Promise<{
     conditions: string[];
     medications: string[];
@@ -415,38 +529,43 @@ Provide a professional clinical summary including:
     dates: string[];
   }> {
     const prompt = `Extract medical entities from this text:
-    
+
 "${text}"
 
-Respond with JSON:
+Respond with JSON only:
 {
-  "conditions": ["condition1", "condition2"],
-  "medications": ["med1", "med2"],
-  "procedures": ["procedure1"],
+  "conditions": [],
+  "medications": [],
+  "procedures": [],
   "measurements": [{"name": "Blood Pressure", "value": "120/80", "unit": "mmHg"}],
-  "dates": ["2024-01-15"]
+  "dates": []
 }`;
 
     try {
       const response = await this.complete(prompt, { temperature: 0.1, maxTokens: 500 });
-      return JSON.parse(response);
-    } catch (error) {
+      return extractJsonFromLLM(response) as {
+        conditions: string[];
+        medications: string[];
+        procedures: string[];
+        measurements: Array<{ name: string; value: string; unit: string }>;
+        dates: string[];
+      };
+    } catch {
       return { conditions: [], medications: [], procedures: [], measurements: [], dates: [] };
     }
   }
 
-  /**
-   * Translate medical jargon to plain language
-   */
   async simplifyMedicalText(medicalText: string): Promise<string> {
     const prompt = `Translate this medical text into simple, easy-to-understand language for a patient:
 
 "${medicalText}"
 
 Keep it accurate but make it understandable for someone without medical training.`;
-    
+
     return this.complete(prompt, { temperature: 0.3, maxTokens: 500 });
   }
 }
 
-export const gptClient = new GPTClient();
+export const llmClient = new LLMClient();
+/** @deprecated Use llmClient — kept for backward compatibility across modules */
+export const gptClient = llmClient;

@@ -1040,7 +1040,7 @@ export class AuthService {
     }
 
     // Upload to Cloudinary
-    const avatarUrl = await fileService.uploadFile(
+    const { url: avatarUrl } = await fileService.uploadFile(
       file.path,
       file.originalname,
       file.mimetype

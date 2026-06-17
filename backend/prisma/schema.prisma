@@ -541,7 +541,7 @@ model PatientDocument {
   fileName     String       @map("file_name")
   fileSize     Int          @map("file_size")
   mimeType     String       @map("mime_type")
-  s3Key        String       @map("s3_key")
+  cloudinaryPublicId String       @map("s3_key")
   url          String
   uploadedById String       @map("uploaded_by_id")
   createdAt    DateTime     @default(now()) @map("created_at")
@@ -852,7 +852,7 @@ model RagDocument {
   fileName    String  @map("file_name")
   fileSize    Int     @map("file_size")
   mimeType    String  @map("mime_type")
-  s3Key       String  @map("s3_key")
+  cloudinaryPublicId String  @map("s3_key")
 
   chunkCount Int      @default(0) @map("chunk_count")
   vectorIds  String[] @map("vector_ids")
@@ -865,10 +865,25 @@ model RagDocument {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   uploadedBy User @relation(fields: [uploadedById], references: [id])
+  chunks     RagChunk[]
 
   @@index([sourceType])
   @@index([isActive])
   @@map("rag_documents")
+}
+
+model RagChunk {
+  id         String   @id @default(cuid())
+  documentId String   @map("document_id")
+  chunkIndex Int      @map("chunk_index")
+  content    String   @db.Text
+  tokenCount Int      @default(0) @map("token_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  document RagDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("rag_chunks")
 }
 
 model AiMemory {

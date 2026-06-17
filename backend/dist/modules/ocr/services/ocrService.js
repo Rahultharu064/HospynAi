@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OcrService = void 0;
+const promises_1 = __importDefault(require("fs/promises"));
 const prisma_1 = __importDefault(require("../../../config/prisma"));
 const fileService_1 = require("../../../modules/auth/services/fileService");
 const tessaractClient_1 = require("../../../integration/ocr/tessaractClient");
@@ -27,18 +28,23 @@ class OcrService {
                 throw new errors_1.NotFoundError('Patient not found');
             }
         }
-        // Upload original file to S3
-        const s3Key = await fileService_1.FileService.uploadToS3(file.path, file.originalname, file.mimetype);
-        const fileUrl = fileService_1.FileService.getPublicUrl(s3Key);
-        // Preprocess image if enabled
+        // Preprocess and OCR before Cloudinary upload (upload removes temp file)
         let processedPath = file.path;
         if (data.preprocess) {
             processedPath = await opencvClient_1.opencvClient.fullPreprocess(file.path);
         }
-        // Initialize Tesseract
         await tessaractClient_1.tesseractClient.initialize(data.language || 'eng');
-        // Extract text
         const ocrResult = await tessaractClient_1.tesseractClient.extractText(processedPath);
+        const upload = await fileService_1.FileService.uploadFile(processedPath, file.originalname, file.mimetype);
+        const fileUrl = upload.url;
+        if (processedPath !== file.path) {
+            try {
+                await promises_1.default.unlink(file.path);
+            }
+            catch {
+                // original temp may already be removed
+            }
+        }
         // Extract structured data
         let extractedData = null;
         if (data.extractFields) {

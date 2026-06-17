@@ -596,16 +596,8 @@ export class PatientService {
       throw new NotFoundError('Patient not found');
     }
 
-    // Upload file to S3
-    const key = await FileService.uploadToS3(
-      file.path,
-      file.originalname,
-      file.mimetype
-    );
+    const upload = await FileService.uploadMulterFile(file);
 
-    const url = FileService.getPublicUrl(key);
-
-    // Create document record
     const document = await prisma.patientDocument.create({
       data: {
         patientId,
@@ -615,8 +607,8 @@ export class PatientService {
         fileName: file.originalname,
         fileSize: file.size,
         mimeType: file.mimetype,
-        s3Key: key,
-        url,
+        cloudinaryPublicId: upload.publicId,
+        url: upload.url,
         uploadedById: userId,
       },
       include: {

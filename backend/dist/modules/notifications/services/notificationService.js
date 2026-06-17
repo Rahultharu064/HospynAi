@@ -185,6 +185,35 @@ class NotificationService {
         return { sent, failed };
     }
     /**
+     * Send bulk notifications to multiple users
+     */
+    static async sendBulkNotifications(dto, performedBy) {
+        const { userIds, title, message, type, channel, metadata } = dto;
+        const total = userIds.length;
+        let sent = 0;
+        let failed = 0;
+        for (const uid of userIds) {
+            try {
+                // Use createNotification to persist and optionally send immediately
+                await this.createNotification({
+                    userId: uid,
+                    title,
+                    message,
+                    type,
+                    channel,
+                    metadata,
+                    sendImmediately: true,
+                }, performedBy || 'system');
+                sent++;
+            }
+            catch (error) {
+                failed++;
+                logger_1.default.error(`Failed to send bulk notification to ${uid}: ${error?.message || error}`);
+            }
+        }
+        return { total, sent, failed };
+    }
+    /**
      * List notifications
      */
     static async listNotifications(query, currentUserId) {
@@ -230,6 +259,16 @@ class NotificationService {
             data: { status: client_1.NotificationStatus.READ, readAt: new Date() },
         });
         return this.formatNotificationResponse(updated);
+    }
+    /**
+     * Mark all notifications as read for a user
+     */
+    static async markAllAsRead(userId) {
+        const result = await prisma_1.default.notification.updateMany({
+            where: { userId, readAt: null },
+            data: { status: client_1.NotificationStatus.READ, readAt: new Date() },
+        });
+        return { count: result.count };
     }
     /**
      * Delete notification

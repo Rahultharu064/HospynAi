@@ -825,7 +825,7 @@ class AuthService {
             throw new errors_1.BadRequestError('File size exceeds 5MB limit');
         }
         // Upload to Cloudinary
-        const avatarUrl = await fileService.uploadFile(file.path, file.originalname, file.mimetype);
+        const { url: avatarUrl } = await fileService.uploadFile(file.path, file.originalname, file.mimetype);
         // Delete old avatar if exists
         const user = await prisma_1.default.user.findUnique({
             where: { id: userId },

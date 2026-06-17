@@ -93,6 +93,31 @@ const documentFilter = (
   }
 };
 
+const audioMimeTypes = [
+  'audio/webm',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mp4',
+  'audio/ogg',
+  'audio/x-m4a',
+];
+
+const audioFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
+  if (audioMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new BadRequestError(
+      `Only audio files are allowed (WebM, MP3, WAV, M4A). Received: ${file.mimetype}`
+    ));
+  }
+};
+
 // Create multer instances
 export const upload = multer({
   storage,
@@ -139,6 +164,16 @@ export const uploadAvatar = multer({
     files: 1,
   },
 }).single('avatar');
+
+// Audio upload for chatbot voice (in-memory — no disk path issues)
+export const uploadAudio = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: audioFilter,
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB max for voice messages
+    files: 1,
+  },
+}).single('audio');
 
 // Generic file upload with custom options
 export const createUploader = (options: {

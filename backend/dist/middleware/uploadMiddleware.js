@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createUploader = exports.uploadAvatar = exports.uploadDocument = exports.uploadImages = exports.uploadImage = exports.upload = void 0;
+exports.createUploader = exports.uploadAudio = exports.uploadAvatar = exports.uploadDocument = exports.uploadImages = exports.uploadImage = exports.upload = void 0;
 const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = __importDefault(require("crypto"));
@@ -74,6 +74,24 @@ const documentFilter = (req, file, cb) => {
         cb(new errors_1.BadRequestError('Only PDF and Word documents are allowed'));
     }
 };
+const audioMimeTypes = [
+    'audio/webm',
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/mp4',
+    'audio/ogg',
+    'audio/x-m4a',
+];
+const audioFilter = (req, file, cb) => {
+    if (audioMimeTypes.includes(file.mimetype)) {
+        cb(null, true);
+    }
+    else {
+        cb(new errors_1.BadRequestError(`Only audio files are allowed (WebM, MP3, WAV, M4A). Received: ${file.mimetype}`));
+    }
+};
 // Create multer instances
 exports.upload = (0, multer_1.default)({
     storage,
@@ -116,6 +134,15 @@ exports.uploadAvatar = (0, multer_1.default)({
         files: 1,
     },
 }).single('avatar');
+// Audio upload for chatbot voice (in-memory — no disk path issues)
+exports.uploadAudio = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    fileFilter: audioFilter,
+    limits: {
+        fileSize: 25 * 1024 * 1024, // 25MB max for voice messages
+        files: 1,
+    },
+}).single('audio');
 // Generic file upload with custom options
 const createUploader = (options) => {
     const customFilter = (req, file, cb) => {

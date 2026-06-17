@@ -14,20 +14,21 @@ export interface TranscriptionSegment {
     tokens: number[];
     temperature: number;
 }
+/**
+ * Speech-to-text via Groq Whisper (OpenAI-compatible audio API).
+ */
 export declare class WhisperClient {
-    private openai;
+    private client;
+    private model;
+    private configured;
     constructor();
-    /**
-     * Transcribe audio file to text
-     */
+    isConfigured(): boolean;
+    private ensureConfigured;
+    private mimeForFormat;
+    private writeTempFile;
+    private transcribeFile;
     transcribe(audioPath: string, language?: string, format?: string): Promise<TranscriptionResult>;
-    /**
-     * Transcribe audio from base64 string
-     */
     transcribeBase64(base64Audio: string, language?: string, format?: string): Promise<TranscriptionResult>;
-    /**
-     * Transcribe audio from buffer
-     */
     transcribeBuffer(audioBuffer: Buffer, language?: string, format?: string): Promise<TranscriptionResult>;
 }
 export declare const whisperClient: WhisperClient;

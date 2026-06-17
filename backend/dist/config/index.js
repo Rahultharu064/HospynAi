@@ -57,6 +57,7 @@ exports.config = {
     upload: {
         maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'),
         allowedMimeTypes: (process.env.ALLOWED_MIME_TYPES || 'image/jpeg,image/png,image/webp,application/pdf').split(','),
+        provider: 'cloudinary',
         cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
         cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || '',
         cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || '',
@@ -65,6 +66,23 @@ exports.config = {
     redis: {
         url: process.env.REDIS_URL || 'redis://localhost:6379',
         password: process.env.REDIS_PASSWORD || '',
+    },
+    groq: {
+        apiKey: process.env.GROQ_API_KEY || '',
+        baseUrl: process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1',
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        whisperModel: process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3',
+    },
+    /** Vectorless RAG — chunks stored in PostgreSQL, no Qdrant/embeddings required */
+    rag: {
+        chunkSize: parseInt(process.env.RAG_CHUNK_SIZE || '1000', 10),
+        chunkOverlap: parseInt(process.env.RAG_CHUNK_OVERLAP || '200', 10),
+        defaultMaxResults: parseInt(process.env.RAG_MAX_RESULTS || '5', 10),
+    },
+    /** Optional — only if you add embedding-based features later */
+    openai: {
+        apiKey: process.env.OPENAI_API_KEY || '',
+        embeddingModel: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
     },
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 };

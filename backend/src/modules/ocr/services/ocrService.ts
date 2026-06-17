@@ -1,3 +1,4 @@
+import fs from 'fs/promises';
 import prisma from '../../../config/prisma';
 import { FileService } from '../../../modules/auth/services/fileService';
 import { tesseractClient } from '../../../integration/ocr/tessaractClient';
@@ -43,25 +44,29 @@ export class OcrService {
       }
     }
 
-    // Upload original file to S3
-    const s3Key = await FileService.uploadToS3(
-      file.path,
-      file.originalname,
-      file.mimetype
-    );
-    const fileUrl = FileService.getPublicUrl(s3Key);
-
-    // Preprocess image if enabled
+    // Preprocess and OCR before Cloudinary upload (upload removes temp file)
     let processedPath = file.path;
     if (data.preprocess) {
       processedPath = await opencvClient.fullPreprocess(file.path);
     }
 
-    // Initialize Tesseract
     await tesseractClient.initialize(data.language || 'eng');
-
-    // Extract text
     const ocrResult = await tesseractClient.extractText(processedPath);
+
+    const upload = await FileService.uploadFile(
+      processedPath,
+      file.originalname,
+      file.mimetype
+    );
+    const fileUrl = upload.url;
+
+    if (processedPath !== file.path) {
+      try {
+        await fs.unlink(file.path);
+      } catch {
+        // original temp may already be removed
+      }
+    }
 
     // Extract structured data
     let extractedData: ExtractedData | null = null;

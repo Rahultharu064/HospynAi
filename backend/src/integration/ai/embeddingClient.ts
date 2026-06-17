@@ -1,28 +1,38 @@
 import OpenAI from 'openai';
+import { config } from '../../config';
 import logger from '../../utils/logger';
 
 export class EmbeddingClient {
-  private openai: OpenAI;
-  private model = 'text-embedding-3-small';
+  private openai: OpenAI | null = null;
+  private model: string;
   private dimensions = 1536;
+  private configured: boolean;
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || '',
-    });
+    this.model = config.openai.embeddingModel;
+    this.configured = Boolean(config.openai.apiKey);
+
+    if (this.configured) {
+      this.openai = new OpenAI({ apiKey: config.openai.apiKey });
+    } else {
+      logger.warn('OPENAI_API_KEY not set — RAG embeddings disabled (optional; Groq handles chat/voice)');
+    }
   }
 
-  /**
-   * Generate embedding for text
-   */
+  isConfigured(): boolean {
+    return this.configured;
+  }
+
   async embed(text: string): Promise<number[]> {
+    if (!this.openai) {
+      throw new Error('Embeddings not configured');
+    }
     try {
       const response = await this.openai.embeddings.create({
         model: this.model,
         input: text,
         dimensions: this.dimensions,
       });
-
       return response.data[0].embedding;
     } catch (error) {
       logger.error('Embedding generation failed:', error);
@@ -34,6 +44,9 @@ export class EmbeddingClient {
    * Batch embed multiple texts
    */
   async embedBatch(texts: string[]): Promise<number[][]> {
+    if (!this.openai) {
+      throw new Error('Embeddings not configured');
+    }
     try {
       const response = await this.openai.embeddings.create({
         model: this.model,

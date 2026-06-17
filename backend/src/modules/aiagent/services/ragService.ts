@@ -1,13 +1,13 @@
 import prisma from '../../../config/prisma';
 import { FileService } from '../../auth/services/fileService';
-import { qdrantService } from '../../../integration/ai/quadrantClient';
-import { gptClient } from '../../../integration/ai/aiClient';
-import { AuditService } from '../../auth/services/auditService';
+import { llmClient } from '../../../integration/ai/aiClient';
+import { vectorlessRagClient } from '../../../integration/ai/vectorlessRagClient';
 import {
   IngestDocumentInput,
   RagQueryInput,
   RagDocumentQueryInput,
 } from '../validators/aiagentValidators';
+import { NotFoundError } from '../../../utils/errors';
 import {
   RagQueryResponse,
   RagDocumentResponse,
@@ -16,91 +16,127 @@ import {
 import logger from '../../../utils/logger';
 
 export class RagService {
-  /**
-   * ============================================
-   * INGEST DOCUMENT
-   * ============================================
-   */
   static async ingestDocument(
     file: Express.Multer.File,
     data: IngestDocumentInput,
     userId: string
   ): Promise<RagDocumentResponse> {
-    // Upload to S3
-    const s3Key = await FileService.uploadToS3(file.path, file.originalname, file.mimetype);
-
-    // Read file content
     const fs = await import('fs/promises');
     const content = await fs.readFile(file.path, 'utf-8');
-
-    // Split into chunks
     const chunks = this.chunkText(content, data.chunkSize || 1000, data.chunkOverlap || 200);
 
-    // Create document record
-    const document = await prisma.ragDocument.create({
-      data: {
-        title: data.title,
-        description: data.description || null,
-        sourceType: data.sourceType,
-        fileName: file.originalname,
-        fileSize: file.size,
-        mimeType: file.mimetype,
-        s3Key,
-        chunkCount: chunks.length,
-        vectorIds: [],
-        uploadedById: userId,
-      },
-      include: {
-        uploadedBy: { select: { id: true, firstName: true, lastName: true } },
-      },
+    const upload = await FileService.uploadMulterFile(file);
+
+    const document = await prisma.$transaction(async (tx) => {
+      const doc = await tx.ragDocument.create({
+        data: {
+          title: data.title,
+          description: data.description || null,
+          sourceType: data.sourceType,
+          fileName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          cloudinaryPublicId: upload.publicId,
+          chunkCount: 0,
+          vectorIds: [],
+          uploadedById: userId,
+        },
+        include: {
+          uploadedBy: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
+
+      await vectorlessRagClient.storeChunks(doc.id, chunks);
+
+      return tx.ragDocument.findUniqueOrThrow({
+        where: { id: doc.id },
+        include: {
+          uploadedBy: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
     });
 
-    // In production: Generate embeddings and store in Qdrant
-    // For now, log the chunking
-    logger.info(`Document ingested: ${document.id} (${chunks.length} chunks)`);
-
+    logger.info(`RAG document ingested (vectorless): ${document.id} (${chunks.length} chunks)`);
     return this.formatDocumentResponse(document);
   }
 
-  /**
-   * ============================================
-   * QUERY RAG
-   * ============================================
-   */
   static async query(data: RagQueryInput): Promise<RagQueryResponse> {
     const startTime = Date.now();
+    const maxResults = data.maxResults || 5;
+    const minRelevance = data.minRelevance ?? 0.05;
 
-    // In production:
-    // 1. Embed the query
-    // 2. Search Qdrant for similar chunks
-    // 3. Build context from retrieved chunks
-    // 4. Generate answer using GPT with context
-
-    const response = await gptClient.generateResponse(
+    const hits = await vectorlessRagClient.search(
       data.query,
-      'GENERAL_INQUIRY',
-      { useKnowledgeBase: true }
+      maxResults,
+      data.sourceType,
+      minRelevance
     );
 
-    const citations: RagCitation[] = [];
-    const sources: any[] = [];
+    const context = vectorlessRagClient.buildContext(hits);
+
+    let answer: string;
+    let tokensUsed = 0;
+
+    if (context) {
+      const response = await llmClient.chat(
+        [
+          {
+            role: 'system',
+            content: `${llmClient.getSystemPrompt('GENERAL')}
+
+Answer ONLY using the provided knowledge base excerpts. If the excerpts do not contain enough information, say so clearly. Cite source titles when relevant.`,
+          },
+          {
+            role: 'system',
+            content: `Knowledge base excerpts:\n\n${context}`,
+          },
+          { role: 'user', content: data.query },
+        ],
+        { temperature: 0.3, maxTokens: 1500 }
+      );
+      answer = response.message;
+      tokensUsed = response.usage.totalTokens;
+    } else {
+      const response = await llmClient.generateResponse(
+        data.query,
+        'GENERAL_INQUIRY',
+        { note: 'No matching knowledge base documents found' }
+      );
+      answer = response.response;
+      tokensUsed = response.tokensUsed || 0;
+    }
+
+    const citations: RagCitation[] = hits.map((hit) => ({
+      text: hit.content.slice(0, 300),
+      source: hit.title,
+      documentId: hit.documentId,
+      relevance: hit.score,
+    }));
+
+    const sources = hits.map((h) => ({
+      id: h.documentId,
+      title: h.title,
+      sourceType: h.sourceType,
+      relevance: h.score,
+      excerpt: h.content.slice(0, 200),
+    }));
+
+    const avgScore = hits.length > 0
+      ? hits.reduce((sum, h) => sum + h.score, 0) / hits.length
+      : 0;
 
     return {
       query: data.query,
-      answer: response.response,
-      citations,
+      answer,
+      citations: data.includeCitations !== false ? citations : [],
       sources,
-      confidence: 0.85,
-      tokensUsed: response.tokensUsed || 0,
+      confidence: Math.min(0.99, avgScore || 0.5),
+      tokensUsed,
       responseTime: Date.now() - startTime,
+      retrievalMethod: 'postgresql_fts',
     };
   }
 
-  /**
-   * ============================================
-   * LIST RAG DOCUMENTS
-   * ============================================
-   */
   static async listDocuments(query: RagDocumentQueryInput): Promise<{
     documents: RagDocumentResponse[];
     pagination: any;
@@ -138,32 +174,16 @@ export class RagService {
     };
   }
 
-  /**
-   * ============================================
-   * DELETE DOCUMENT
-   * ============================================
-   */
   static async deleteDocument(id: string, userId: string): Promise<void> {
     const document = await prisma.ragDocument.findUnique({ where: { id } });
-    if (!document) throw new Error('Document not found');
+    if (!document) throw new NotFoundError('Document not found');
 
-    // Delete from S3
-    await FileService.deleteFromS3(document.s3Key);
-
-    // Delete from Qdrant
-    if (document.vectorIds.length > 0) {
-      await qdrantService.deleteByFilter({ documentId: id });
-    }
-
-    // Delete from database
+    await FileService.deleteFile(document.cloudinaryPublicId);
+    await vectorlessRagClient.deleteDocumentChunks(id);
     await prisma.ragDocument.delete({ where: { id } });
 
-    logger.info(`RAG document deleted: ${id}`);
+    logger.info(`RAG document deleted (vectorless): ${id}`);
   }
-
-  // ============================================
-  // HELPER METHODS
-  // ============================================
 
   private static chunkText(
     text: string,
@@ -177,9 +197,11 @@ export class RagService {
       const end = Math.min(start + chunkSize, text.length);
       chunks.push(text.slice(start, end));
       start += chunkSize - chunkOverlap;
+      if (start >= text.length) break;
+      if (chunkSize <= chunkOverlap) break;
     }
 
-    return chunks;
+    return chunks.filter((c) => c.trim().length > 0);
   }
 
   private static formatDocumentResponse(doc: any): RagDocumentResponse {

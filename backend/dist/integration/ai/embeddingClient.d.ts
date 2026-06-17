@@ -2,10 +2,9 @@ export declare class EmbeddingClient {
     private openai;
     private model;
     private dimensions;
+    private configured;
     constructor();
-    /**
-     * Generate embedding for text
-     */
+    isConfigured(): boolean;
     embed(text: string): Promise<number[]>;
     /**
      * Batch embed multiple texts

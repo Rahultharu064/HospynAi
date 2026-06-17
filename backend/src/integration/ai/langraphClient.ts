@@ -6,6 +6,7 @@ import { z } from "zod";
 import { config } from "../../config";
 import logger from "../../utils/logger";
 import prisma from "../../config/prisma";
+import { vectorlessRagClient } from "./vectorlessRagClient";
 
 // ============================================
 // STATE DEFINITIONS
@@ -382,29 +383,23 @@ class QueryKnowledgeBaseTool extends Tool {
 
   async _call(input: z.infer<typeof this.schema>): Promise<string> {
     try {
-      // In production, this would query Qdrant/RAG system
-      const results = await prisma.ragDocument.findMany({
-        where: {
-          isActive: true,
-          ...(input.category && { sourceType: input.category.toUpperCase() }),
-          OR: [
-            { title: { contains: input.query, mode: "insensitive" } },
-            { description: { contains: input.query, mode: "insensitive" } },
-          ],
-        },
-        take: 5,
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          sourceType: true,
-        },
-      });
+      const results = await vectorlessRagClient.search(
+        input.query,
+        5,
+        input.category ? input.category.toUpperCase() : undefined
+      );
 
       return JSON.stringify({
         success: true,
         resultsFound: results.length,
-        results: results,
+        results: results.map((r) => ({
+          documentId: r.documentId,
+          title: r.title,
+          sourceType: r.sourceType,
+          excerpt: r.content.slice(0, 300),
+          score: r.score,
+        })),
+        context: vectorlessRagClient.buildContext(results),
       });
     } catch (error: any) {
       return JSON.stringify({
@@ -430,10 +425,13 @@ export class LangGraphAgent {
 
   constructor() {
     this.model = new ChatOpenAI({
-      modelName: "gpt-4o",
+      modelName: config.groq.model,
       temperature: 0.3,
       maxTokens: 2000,
-      openAIApiKey: process.env.OPENAI_API_KEY,
+      configuration: {
+        baseURL: config.groq.baseUrl,
+        apiKey: config.groq.apiKey,
+      },
     });
 
     this.tools = [

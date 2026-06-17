@@ -1,5 +1,5 @@
-import { CreateDoctorInput, UpdateDoctorInput, UpdateScheduleInput, DoctorQueryInput } from '../validators/doctor.validator';
-import { DoctorResponse, DoctorListResponse, DoctorAvailabilityResponse, DayScheduleResponse } from '../types/doctor.types';
+import { CreateDoctorInput, UpdateDoctorInput, UpdateScheduleInput, DoctorQueryInput } from '../validators/doctorValidator';
+import { DoctorResponse, DoctorListResponse, DoctorAvailabilityResponse, DayScheduleResponse } from '../../../types/doctorTypes';
 export declare class DoctorService {
     /**
      * ============================================

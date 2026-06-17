@@ -1,45 +1,35 @@
+export interface CloudinaryUploadResult {
+    url: string;
+    publicId: string;
+}
 declare class FileServiceClass {
     constructor();
+    isConfigured(): boolean;
+    private ensureConfigured;
+    private resolveResourceType;
+    private buildPublicId;
+    private toUploadResult;
     /**
-     * Uploads a file to Cloudinary and cleans up the temporary local file.
-     * @param filePath Local path to the temporary file
-     * @param fileName Original name of the file
-     * @param mimeType MIME type of the file
-     * @returns The secure HTTPS URL of the uploaded file
+     * Upload from a Multer file (disk or memory storage).
      */
-    uploadFile(filePath: string, fileName: string, mimeType: string): Promise<string>;
+    uploadMulterFile(file: Express.Multer.File): Promise<CloudinaryUploadResult>;
     /**
-     * Deletes an asset from Cloudinary using its public ID.
-     * @param publicId The Cloudinary public ID of the asset
+     * Upload a file from disk path; deletes the temp file after upload.
      */
-    deleteFile(publicId: string): Promise<void>;
+    uploadFile(filePath: string, fileName: string, mimeType: string): Promise<CloudinaryUploadResult>;
     /**
-     * Helper to extract public ID from a Cloudinary URL.
-     * @param url Cloudinary URL
+     * Upload from an in-memory buffer (no temp file).
      */
+    uploadBuffer(buffer: Buffer, fileName: string, mimeType: string): Promise<CloudinaryUploadResult>;
+    /**
+     * Delete an asset by public ID or full Cloudinary URL.
+     */
+    deleteFile(publicIdOrUrl: string): Promise<void>;
+    /**
+     * Resolve a secure HTTPS URL from a public ID or pass through if already a URL.
+     */
+    getUrl(publicIdOrUrl: string): string;
     extractPublicId(url: string): string | null;
-    /**
-     * =========================================================================
-     * BACKWARD COMPATIBILITY ALIASES (AWS S3 Compatibility)
-     * =========================================================================
-     */
-    /**
-     * Legacy method for S3 uploading. Maps directly to Cloudinary.
-     */
-    uploadToS3(filePath: string, fileName: string, mimeType: string): Promise<string>;
-    /**
-     * Legacy method for S3 signed URLs. Cloudinary urls are secure by default,
-     * so we return the secure URL.
-     */
-    getSignedUrl(key: string, expiresIn?: number): Promise<string>;
-    /**
-     * Legacy method for S3 deletion. Maps to Cloudinary delete.
-     */
-    deleteFromS3(key: string): Promise<void>;
-    /**
-     * Legacy method for S3 public URL retrieval.
-     */
-    getPublicUrl(key: string): string;
 }
 export declare const FileService: FileServiceClass;
 export {};

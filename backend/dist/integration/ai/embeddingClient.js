@@ -5,19 +5,28 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.embeddingClient = exports.EmbeddingClient = void 0;
 const openai_1 = __importDefault(require("openai"));
+const config_1 = require("../../config");
 const logger_1 = __importDefault(require("../../utils/logger"));
 class EmbeddingClient {
     constructor() {
-        this.model = 'text-embedding-3-small';
+        this.openai = null;
         this.dimensions = 1536;
-        this.openai = new openai_1.default({
-            apiKey: process.env.OPENAI_API_KEY || '',
-        });
+        this.model = config_1.config.openai.embeddingModel;
+        this.configured = Boolean(config_1.config.openai.apiKey);
+        if (this.configured) {
+            this.openai = new openai_1.default({ apiKey: config_1.config.openai.apiKey });
+        }
+        else {
+            logger_1.default.warn('OPENAI_API_KEY not set — RAG embeddings disabled (optional; Groq handles chat/voice)');
+        }
     }
-    /**
-     * Generate embedding for text
-     */
+    isConfigured() {
+        return this.configured;
+    }
     async embed(text) {
+        if (!this.openai) {
+            throw new Error('Embeddings not configured');
+        }
         try {
             const response = await this.openai.embeddings.create({
                 model: this.model,
@@ -35,6 +44,9 @@ class EmbeddingClient {
      * Batch embed multiple texts
      */
     async embedBatch(texts) {
+        if (!this.openai) {
+            throw new Error('Embeddings not configured');
+        }
         try {
             const response = await this.openai.embeddings.create({
                 model: this.model,

@@ -476,10 +476,7 @@ class PatientService {
         if (!patient || patient.deletedAt) {
             throw new errors_1.NotFoundError('Patient not found');
         }
-        // Upload file to S3
-        const key = await fileService_1.FileService.uploadToS3(file.path, file.originalname, file.mimetype);
-        const url = fileService_1.FileService.getPublicUrl(key);
-        // Create document record
+        const upload = await fileService_1.FileService.uploadMulterFile(file);
         const document = await prisma_1.default.patientDocument.create({
             data: {
                 patientId,
@@ -489,8 +486,8 @@ class PatientService {
                 fileName: file.originalname,
                 fileSize: file.size,
                 mimeType: file.mimetype,
-                s3Key: key,
-                url,
+                cloudinaryPublicId: upload.publicId,
+                url: upload.url,
                 uploadedById: userId,
             },
             include: {

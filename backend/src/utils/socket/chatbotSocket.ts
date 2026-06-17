@@ -52,7 +52,9 @@ export function setupChatbotSocket(io: Server): void {
             message: data.message,
             sessionId: data.sessionId,
             patientId: data.patientId,
-            context: data.context as any,
+            context: (data.context as any) || 'GENERAL',
+            language: 'en',
+            stream: false,
           },
           user.userId,
           socket.handshake.address
@@ -83,7 +85,8 @@ export function setupChatbotSocket(io: Server): void {
             message: data.message,
             sessionId: data.sessionId,
             patientId: data.patientId,
-            context: data.context as any,
+            context: (data.context as any) || 'GENERAL',
+            language: 'en',
             stream: true,
           },
           user.userId,
@@ -121,12 +124,14 @@ export function setupChatbotSocket(io: Server): void {
         const result = await ChatbotService.processAudioMessage(
           audioBuffer,
           {
-            format: data.format as any,
+            format: (data.format as any) || 'webm',
+            language: 'en',
             sessionId: data.sessionId,
             patientId: data.patientId,
-            context: data.context as any,
+            context: (data.context as any) || 'GENERAL',
           },
-          user.userId
+          user.userId,
+          socket.handshake.address
         );
 
         socket.emit('processing-audio', { status: false });
@@ -145,6 +150,8 @@ export function setupChatbotSocket(io: Server): void {
         const history = await ChatbotService.getChatHistory({
           sessionId: data.sessionId,
           patientId: data.patientId,
+          page: 1,
+          limit: 50,
         });
 
         socket.emit('chat-history', history);

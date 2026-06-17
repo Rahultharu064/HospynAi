@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CallingService = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../../../config/prisma"));
+const config_1 = require("../../../config");
 const twilioClient_1 = require("../../../integration/twilio/twilioClient");
 const aiClient_1 = require("../../../integration/ai/aiClient");
 const errors_1 = require("../../../utils/errors");
@@ -26,11 +27,11 @@ class CallingService {
             message = messages[data.callType] || messages.GENERAL;
         }
         const twimlUrl = `${process.env.API_URL}/api/v1/calling/webhook/voice?type=outbound&patientId=${data.patientId}`;
-        const result = await twilioClient_1.twilioClient.makeCall(data.phoneNumber, config.twilio.phoneNumber, twimlUrl);
+        const result = await twilioClient_1.twilioClient.makeCall(data.phoneNumber, config_1.config.twilio.phoneNumber, twimlUrl);
         await prisma_1.default.callLog.create({
             data: {
                 callSid: result.callSid, patientId: data.patientId,
-                fromNumber: config.twilio.phoneNumber, toNumber: data.phoneNumber,
+                fromNumber: config_1.config.twilio.phoneNumber, toNumber: data.phoneNumber,
                 direction: 'OUTBOUND', outcome: client_1.CallOutcome.MISSED, aiHandled: true,
                 metadata: { callType: data.callType, appointmentId: data.appointmentId, initiatedBy: userId, message },
                 startedAt: new Date(),
@@ -162,10 +163,16 @@ class CallingService {
         return { calls: calls.map((c) => this.formatCallResponse(c)), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
     }
     static async getCallTranscript(callSid) {
-        const callLog = await prisma_1.default.callLog.findUnique({ where: { callSid }, include: { voiceLogs: true } });
+        const callLog = await prisma_1.default.callLog.findUnique({ where: { callSid } });
         if (!callLog)
             throw new errors_1.NotFoundError('Call not found');
-        const transcript = callLog.voiceLogs?.map((v) => v.transcript).filter(Boolean).join('\n') || '';
+        // Voice logs are stored separately and may contain callSid in metadata.
+        // Query voice logs that reference this callSid in their metadata JSON.
+        // Prisma JSON filters vary by version and typings; to avoid incompatible JSON filters
+        // fetch recent voice logs and filter in JS by checking metadata.callSid.
+        const allVoiceLogs = await prisma_1.default.voiceLog.findMany({ orderBy: { createdAt: 'asc' } });
+        const voiceLogs = allVoiceLogs.filter((v) => v.metadata?.callSid === callSid);
+        const transcript = voiceLogs.map((v) => v.transcript).filter(Boolean).join('\n') || '';
         return { callSid: callLog.callSid, transcript, segments: [], duration: callLog.duration || 0 };
     }
     static async getCallStats() {

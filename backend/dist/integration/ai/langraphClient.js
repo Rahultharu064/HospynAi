@@ -9,8 +9,10 @@ const openai_1 = require("@langchain/openai");
 const tools_1 = require("@langchain/core/tools");
 const messages_1 = require("@langchain/core/messages");
 const zod_1 = require("zod");
+const config_1 = require("../../config");
 const logger_1 = __importDefault(require("../../utils/logger"));
 const prisma_1 = __importDefault(require("../../config/prisma"));
+const vectorlessRagClient_1 = require("./vectorlessRagClient");
 // ============================================
 // STATE DEFINITIONS
 // ============================================
@@ -363,28 +365,18 @@ class QueryKnowledgeBaseTool extends tools_1.Tool {
     }
     async _call(input) {
         try {
-            // In production, this would query Qdrant/RAG system
-            const results = await prisma_1.default.ragDocument.findMany({
-                where: {
-                    isActive: true,
-                    ...(input.category && { sourceType: input.category.toUpperCase() }),
-                    OR: [
-                        { title: { contains: input.query, mode: "insensitive" } },
-                        { description: { contains: input.query, mode: "insensitive" } },
-                    ],
-                },
-                take: 5,
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    sourceType: true,
-                },
-            });
+            const results = await vectorlessRagClient_1.vectorlessRagClient.search(input.query, 5, input.category ? input.category.toUpperCase() : undefined);
             return JSON.stringify({
                 success: true,
                 resultsFound: results.length,
-                results: results,
+                results: results.map((r) => ({
+                    documentId: r.documentId,
+                    title: r.title,
+                    sourceType: r.sourceType,
+                    excerpt: r.content.slice(0, 300),
+                    score: r.score,
+                })),
+                context: vectorlessRagClient_1.vectorlessRagClient.buildContext(results),
             });
         }
         catch (error) {
@@ -404,10 +396,13 @@ class QueryKnowledgeBaseTool extends tools_1.Tool {
 class LangGraphAgent {
     constructor() {
         this.model = new openai_1.ChatOpenAI({
-            modelName: "gpt-4o",
+            modelName: config_1.config.groq.model,
             temperature: 0.3,
             maxTokens: 2000,
-            openAIApiKey: process.env.OPENAI_API_KEY,
+            configuration: {
+                baseURL: config_1.config.groq.baseUrl,
+                apiKey: config_1.config.groq.apiKey,
+            },
         });
         this.tools = [
             new ScheduleAppointmentTool(),

@@ -16,6 +16,14 @@ export declare const env: {
     BCRYPT_ROUNDS: number;
     RATE_LIMIT_WINDOW_MS: number;
     RATE_LIMIT_MAX_REQUESTS: number;
+    GROQ_API_KEY: string | undefined;
+    GROQ_MODEL: string;
+    GROQ_WHISPER_MODEL: string;
+    GROQ_BASE_URL: string;
     OPENAI_API_KEY: string | undefined;
+    CLOUDINARY_CLOUD_NAME: string | undefined;
+    CLOUDINARY_API_KEY: string | undefined;
+    CLOUDINARY_API_SECRET: string | undefined;
+    CLOUDINARY_FOLDER: string;
 };
 //# sourceMappingURL=env.d.ts.map

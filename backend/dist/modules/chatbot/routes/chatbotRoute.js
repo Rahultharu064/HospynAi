@@ -18,7 +18,7 @@ router.post('/message', chatbotLimiter, authMiddleware_1.authenticate, (0, valid
 // Stream message (SSE)
 router.post('/stream', authMiddleware_1.authenticate, (0, validateMiddleware_1.validate)({ body: chatbotValidator_1.chatMessageSchema.shape.body }), chatbotController_1.ChatbotController.streamMessage);
 // Audio message
-router.post('/audio', chatbotLimiter, authMiddleware_1.authenticate, uploadMiddleware_1.upload.single('audio'), (0, validateMiddleware_1.validate)({ body: chatbotValidator_1.audioMessageSchema.shape.body }), chatbotController_1.ChatbotController.sendAudio);
+router.post('/audio', chatbotLimiter, authMiddleware_1.authenticate, uploadMiddleware_1.uploadAudio, (0, validateMiddleware_1.validate)({ body: chatbotValidator_1.audioMessageSchema.shape.body }), chatbotController_1.ChatbotController.sendAudio);
 // Chat history
 router.get('/history', authMiddleware_1.authenticate, (0, validateMiddleware_1.validate)({ query: chatbotValidator_1.chatHistorySchema.shape.query }), chatbotController_1.ChatbotController.getHistory);
 // Clear history

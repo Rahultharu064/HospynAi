@@ -6,11 +6,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DoctorService = void 0;
 const client_1 = require("@prisma/client");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const prisma_1 = __importDefault(require("../database/prisma"));
-const config_1 = require("../config");
-const email_service_1 = require("./email.service");
-const errors_1 = require("../utils/errors");
-const logger_1 = __importDefault(require("../utils/logger"));
+const prisma_1 = __importDefault(require("../../../config/prisma"));
+const config_1 = require("../../../config");
+const emailService_1 = require("../../auth/services/emailService");
+const errors_1 = require("../../../utils/errors");
+const logger_1 = __importDefault(require("../../../utils/logger"));
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 class DoctorService {
     /**
@@ -126,7 +126,7 @@ class DoctorService {
             return { user, profile };
         });
         // Send welcome email (non-blocking)
-        email_service_1.EmailService.sendWelcomeEmail(result.user.email, result.user.firstName).catch((error) => {
+        emailService_1.EmailService.sendWelcomeEmail(result.user.email, result.user.firstName).catch((error) => {
             logger_1.default.error('Failed to send welcome email to doctor:', error);
         });
         logger_1.default.info(`Doctor created: ${result.user.email}`);

@@ -2,20 +2,20 @@
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DoctorController = void 0;
-const doctor_service_1 = require("../services/doctor.service");
-const error_middleware_1 = require("../middleware/error.middleware");
-const errors_1 = require("../utils/errors");
+const doctorService_1 = require("../services/doctorService");
+const errorMiddleware_1 = require("../../../middleware/errorMiddleware");
+const errors_1 = require("../../../utils/errors");
 class DoctorController {
 }
 exports.DoctorController = DoctorController;
 _a = DoctorController;
 // POST /api/v1/doctors
-DoctorController.create = error_middleware_1.AsyncHandler.handle(async (req, res) => {
+DoctorController.create = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const dto = req.body;
     const userId = req.user?.userId;
     if (!userId)
         throw new errors_1.UnauthorizedError();
-    const doctor = await doctor_service_1.DoctorService.createDoctor(dto, userId, req.ip || '', req.headers['user-agent'] || '');
+    const doctor = await doctorService_1.DoctorService.createDoctor(dto, userId, req.ip || '', req.headers['user-agent'] || '');
     res.status(201).json({
         success: true,
         status: 201,
@@ -24,9 +24,9 @@ DoctorController.create = error_middleware_1.AsyncHandler.handle(async (req, res
     });
 });
 // GET /api/v1/doctors
-DoctorController.list = error_middleware_1.AsyncHandler.handle(async (req, res) => {
+DoctorController.list = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const query = req.query;
-    const result = await doctor_service_1.DoctorService.listDoctors(query);
+    const result = await doctorService_1.DoctorService.listDoctors(query);
     res.status(200).json({
         success: true,
         status: 200,
@@ -35,9 +35,9 @@ DoctorController.list = error_middleware_1.AsyncHandler.handle(async (req, res) 
     });
 });
 // GET /api/v1/doctors/:id
-DoctorController.getById = error_middleware_1.AsyncHandler.handle(async (req, res) => {
+DoctorController.getById = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const { id } = req.params;
-    const doctor = await doctor_service_1.DoctorService.getDoctorById(id);
+    const doctor = await doctorService_1.DoctorService.getDoctorById(id);
     res.status(200).json({
         success: true,
         status: 200,
@@ -45,13 +45,13 @@ DoctorController.getById = error_middleware_1.AsyncHandler.handle(async (req, re
     });
 });
 // PATCH /api/v1/doctors/:id
-DoctorController.update = error_middleware_1.AsyncHandler.handle(async (req, res) => {
+DoctorController.update = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const { id } = req.params;
     const dto = req.body;
     const userId = req.user?.userId;
     if (!userId)
         throw new errors_1.UnauthorizedError();
-    const doctor = await doctor_service_1.DoctorService.updateDoctor(id, dto, userId, req.ip || '', req.headers['user-agent'] || '');
+    const doctor = await doctorService_1.DoctorService.updateDoctor(id, dto, userId, req.ip || '', req.headers['user-agent'] || '');
     res.status(200).json({
         success: true,
         status: 200,
@@ -60,13 +60,13 @@ DoctorController.update = error_middleware_1.AsyncHandler.handle(async (req, res
     });
 });
 // PUT /api/v1/doctors/:id/schedule
-DoctorController.updateSchedule = error_middleware_1.AsyncHandler.handle(async (req, res) => {
+DoctorController.updateSchedule = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const { id } = req.params;
     const dto = req.body;
     const userId = req.user?.userId;
     if (!userId)
         throw new errors_1.UnauthorizedError();
-    const schedule = await doctor_service_1.DoctorService.updateSchedule(id, dto, userId, req.ip || '', req.headers['user-agent'] || '');
+    const schedule = await doctorService_1.DoctorService.updateSchedule(id, dto, userId, req.ip || '', req.headers['user-agent'] || '');
     res.status(200).json({
         success: true,
         status: 200,
@@ -75,9 +75,9 @@ DoctorController.updateSchedule = error_middleware_1.AsyncHandler.handle(async (
     });
 });
 // GET /api/v1/doctors/:id/schedule
-DoctorController.getSchedule = error_middleware_1.AsyncHandler.handle(async (req, res) => {
+DoctorController.getSchedule = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const { id } = req.params;
-    const doctor = await doctor_service_1.DoctorService.getDoctorById(id);
+    const doctor = await doctorService_1.DoctorService.getDoctorById(id);
     res.status(200).json({
         success: true,
         status: 200,
@@ -85,12 +85,12 @@ DoctorController.getSchedule = error_middleware_1.AsyncHandler.handle(async (req
     });
 });
 // GET /api/v1/doctors/availability
-DoctorController.getAvailability = error_middleware_1.AsyncHandler.handle(async (req, res) => {
+DoctorController.getAvailability = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const { doctorId, dateFrom, dateTo } = req.query;
     if (!doctorId || !dateFrom) {
         throw new errors_1.BadRequestError('Doctor ID and dateFrom are required');
     }
-    const availability = await doctor_service_1.DoctorService.getDoctorAvailability(doctorId, dateFrom, dateTo);
+    const availability = await doctorService_1.DoctorService.getDoctorAvailability(doctorId, dateFrom, dateTo);
     res.status(200).json({
         success: true,
         status: 200,
@@ -98,12 +98,12 @@ DoctorController.getAvailability = error_middleware_1.AsyncHandler.handle(async 
     });
 });
 // DELETE /api/v1/doctors/:id
-DoctorController.delete = error_middleware_1.AsyncHandler.handle(async (req, res) => {
+DoctorController.delete = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const { id } = req.params;
     const userId = req.user?.userId;
     if (!userId)
         throw new errors_1.UnauthorizedError();
-    await doctor_service_1.DoctorService.deleteDoctor(id, userId, req.ip || '', req.headers['user-agent'] || '');
+    await doctorService_1.DoctorService.deleteDoctor(id, userId, req.ip || '', req.headers['user-agent'] || '');
     res.status(200).json({
         success: true,
         status: 200,

@@ -49,7 +49,7 @@ export class ChatbotController {
     const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedError();
 
-    const result = await ChatbotService.processAudioMessage(file, dto, userId);
+    const result = await ChatbotService.processAudioMessage(file, dto, userId, req.ip || '');
     res.status(200).json({ success: true, status: 200, data: result });
   });
 

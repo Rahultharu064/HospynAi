@@ -7,6 +7,7 @@ exports.AgentService = void 0;
 const uuid_1 = require("uuid");
 const prisma_1 = __importDefault(require("../../../config/prisma"));
 const aiClient_1 = require("../../../integration/ai/aiClient");
+const vectorlessRagClient_1 = require("../../../integration/ai/vectorlessRagClient");
 // Tool definitions for the agent
 const AVAILABLE_TOOLS = [
     {
@@ -130,7 +131,7 @@ class AgentService {
             }
         }
         // Generate final response
-        const response = await aiClient_1.gptClient.generateResponse(data.message, 'GENERAL_INQUIRY', { ...patientContext, actions, memories });
+        const response = await aiClient_1.llmClient.generateResponse(data.message, 'GENERAL_INQUIRY', { ...patientContext, actions, memories });
         // Save to conversation history
         await prisma_1.default.conversationHistory.create({
             data: {
@@ -285,7 +286,7 @@ class AgentService {
         };
     }
     static async analyzeSymptomsTask(params, steps) {
-        const analysis = await aiClient_1.gptClient.analyzeSymptoms(params.symptoms || []);
+        const analysis = await aiClient_1.llmClient.analyzeSymptoms(params.symptoms || []);
         steps.push({
             step: 1, action: 'ANALYZE_SYMPTOMS', tool: 'gpt4',
             input: params, output: analysis, status: 'completed', duration: 2000,
@@ -339,9 +340,17 @@ class AgentService {
     static async executeTool(toolName, parameters) {
         // Execute the appropriate tool
         switch (toolName) {
-            case 'query_knowledge_base':
-                // Would query RAG
-                return { results: [] };
+            case 'query_knowledge_base': {
+                const results = await vectorlessRagClient_1.vectorlessRagClient.search(parameters.query || '', 5);
+                return {
+                    results: results.map((r) => ({
+                        text: r.content,
+                        title: r.title,
+                        score: r.score,
+                    })),
+                    context: vectorlessRagClient_1.vectorlessRagClient.buildContext(results),
+                };
+            }
             default:
                 return { executed: true, toolName };
         }
@@ -350,8 +359,19 @@ class AgentService {
         if (!patientId && !userId)
             return [];
         try {
-            // In production, would embed query and search Qdrant
-            return [];
+            const memories = await prisma_1.default.aiMemory.findMany({
+                where: {
+                    ...(patientId ? { patientId } : {}),
+                    ...(userId ? { userId } : {}),
+                    ...(query
+                        ? { content: { contains: query, mode: 'insensitive' } }
+                        : {}),
+                },
+                orderBy: { relevanceScore: 'desc' },
+                take: 5,
+                select: { content: true, memoryType: true, relevanceScore: true },
+            });
+            return memories;
         }
         catch (error) {
             return [];

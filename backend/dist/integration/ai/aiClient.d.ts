@@ -1,11 +1,20 @@
 export interface ChatMessage {
-    role: 'system' | 'user' | 'assistant' | 'function';
-    content: string;
+    role: 'system' | 'user' | 'assistant' | 'function' | 'tool';
+    content: string | null;
     name?: string;
+    tool_call_id?: string;
     function_call?: {
         name: string;
         arguments: string;
     };
+    tool_calls?: Array<{
+        id: string;
+        type: 'function';
+        function: {
+            name: string;
+            arguments: string;
+        };
+    }>;
 }
 export interface ChatCompletionOptions {
     model?: string;
@@ -29,6 +38,7 @@ export interface ChatResponse {
     message: string;
     role: string;
     functionCall?: {
+        id: string;
         name: string;
         arguments: Record<string, any>;
     };
@@ -51,37 +61,31 @@ export interface StreamingCallback {
     onComplete: (response: ChatResponse) => void;
     onError: (error: Error) => void;
 }
-export declare class GPTClient {
-    private openai;
+/** Extract JSON from LLM output that may include markdown fences */
+export declare function extractJsonFromLLM(text: string): Record<string, any>;
+/**
+ * Groq-backed LLM client (OpenAI-compatible API).
+ * Used for chat, intent classification, streaming, and tool calling.
+ */
+export declare class LLMClient {
+    private client;
     private defaultModel;
+    private configured;
     constructor();
-    /**
-     * Complete chat with context
-     */
+    isConfigured(): boolean;
+    private ensureConfigured;
+    private functionsToTools;
+    private normalizeMessages;
+    private parseToolCall;
     chat(messages: ChatMessage[], options?: ChatCompletionOptions): Promise<ChatResponse>;
-    /**
-     * Stream chat completion
-     */
     streamChat(messages: ChatMessage[], callbacks: StreamingCallback, options?: ChatCompletionOptions): Promise<void>;
-    /**
-     * Get system prompt based on context
-     */
     getSystemPrompt(context: 'GENERAL' | 'DOCTOR' | 'PATIENT' | 'TRIAGE'): string;
-    /**
-     * Get medical functions for function calling
-     */
     getMedicalFunctions(): ChatFunction[];
-    /**
-     * Simple text completion (non-streaming)
-     */
     complete(prompt: string, options?: {
         temperature?: number;
         maxTokens?: number;
         systemPrompt?: string;
     }): Promise<string>;
-    /**
-     * Classify intent from user message
-     */
     classifyIntent(message: string): Promise<{
         intent: string;
         confidence: number;
@@ -89,16 +93,14 @@ export declare class GPTClient {
         sentiment: 'positive' | 'negative' | 'neutral';
         urgency: 'routine' | 'urgent' | 'emergency';
         interactionType?: string;
-    }>; 
-    /** High-level helper used across the app to generate a response with optional intent and context. */
+    }>;
     generateResponse(prompt: string, intent?: string, context?: Record<string, any>): Promise<GenerateResponseResult>;
-    /**
-     * Generate medical summary
-     */
+    analyzeSymptoms(symptoms: string[]): Promise<{
+        triage: 'routine' | 'urgent' | 'emergency';
+        recommendation: string;
+        followUpQuestions: string[];
+    }>;
     generateMedicalSummary(patientData: any, records: any[]): Promise<string>;
-    /**
-     * Extract medical entities from text
-     */
     extractMedicalEntities(text: string): Promise<{
         conditions: string[];
         medications: string[];
@@ -110,10 +112,9 @@ export declare class GPTClient {
         }>;
         dates: string[];
     }>;
-    /**
-     * Translate medical jargon to plain language
-     */
     simplifyMedicalText(medicalText: string): Promise<string>;
 }
-export declare const gptClient: GPTClient;
+export declare const llmClient: LLMClient;
+/** @deprecated Use llmClient — kept for backward compatibility across modules */
+export declare const gptClient: LLMClient;
 //# sourceMappingURL=aiClient.d.ts.map

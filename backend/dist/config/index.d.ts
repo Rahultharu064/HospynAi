@@ -49,6 +49,7 @@ export declare const config: {
     upload: {
         maxFileSize: number;
         allowedMimeTypes: string[];
+        provider: "cloudinary";
         cloudinaryCloudName: string;
         cloudinaryApiKey: string;
         cloudinaryApiSecret: string;
@@ -57,6 +58,23 @@ export declare const config: {
     redis: {
         url: string;
         password: string;
+    };
+    groq: {
+        apiKey: string;
+        baseUrl: string;
+        model: string;
+        whisperModel: string;
+    };
+    /** Vectorless RAG — chunks stored in PostgreSQL, no Qdrant/embeddings required */
+    rag: {
+        chunkSize: number;
+        chunkOverlap: number;
+        defaultMaxResults: number;
+    };
+    /** Optional — only if you add embedding-based features later */
+    openai: {
+        apiKey: string;
+        embeddingModel: string;
     };
     frontendUrl: string;
 };

@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../../../config/prisma';
-import { gptClient } from '../../../integration/ai/aiClient';
-import { qdrantService } from '../../../integration/ai/quadrantClient';
+import { llmClient } from '../../../integration/ai/aiClient';
+import { vectorlessRagClient } from '../../../integration/ai/vectorlessRagClient';
 import { AuditService } from '../../auth/services/auditService';
 import {
   AgentChatInput,
@@ -148,7 +148,7 @@ export class AgentService {
     }
 
     // Generate final response
-    const response = await gptClient.generateResponse(
+    const response = await llmClient.generateResponse(
       data.message,
       'GENERAL_INQUIRY',
       { ...patientContext, actions, memories }
@@ -329,7 +329,7 @@ export class AgentService {
   }
 
   private static async analyzeSymptomsTask(params: any, steps: any[]): Promise<any> {
-    const analysis = await gptClient.analyzeSymptoms(params.symptoms || []);
+    const analysis = await llmClient.analyzeSymptoms(params.symptoms || []);
     
     steps.push({
       step: 1, action: 'ANALYZE_SYMPTOMS', tool: 'gpt4',
@@ -397,9 +397,17 @@ export class AgentService {
   private static async executeTool(toolName: string, parameters: any): Promise<any> {
     // Execute the appropriate tool
     switch (toolName) {
-      case 'query_knowledge_base':
-        // Would query RAG
-        return { results: [] };
+      case 'query_knowledge_base': {
+        const results = await vectorlessRagClient.search(parameters.query || '', 5);
+        return {
+          results: results.map((r) => ({
+            text: r.content,
+            title: r.title,
+            score: r.score,
+          })),
+          context: vectorlessRagClient.buildContext(results),
+        };
+      }
       default:
         return { executed: true, toolName };
     }
@@ -413,8 +421,19 @@ export class AgentService {
     if (!patientId && !userId) return [];
     
     try {
-      // In production, would embed query and search Qdrant
-      return [];
+      const memories = await prisma.aiMemory.findMany({
+        where: {
+          ...(patientId ? { patientId } : {}),
+          ...(userId ? { userId } : {}),
+          ...(query
+            ? { content: { contains: query, mode: 'insensitive' } }
+            : {}),
+        },
+        orderBy: { relevanceScore: 'desc' },
+        take: 5,
+        select: { content: true, memoryType: true, relevanceScore: true },
+      });
+      return memories;
     } catch (error) {
       return [];
     }

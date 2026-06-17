@@ -32,7 +32,17 @@ exports.env = {
     BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),
     RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
     RATE_LIMIT_MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
-    // AI
+    // AI — Groq (primary LLM + speech-to-text)
+    GROQ_API_KEY: process.env.GROQ_API_KEY,
+    GROQ_MODEL: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    GROQ_WHISPER_MODEL: process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3',
+    GROQ_BASE_URL: process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1',
+    // Optional — embeddings for RAG (Groq does not provide embeddings)
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    // File storage — Cloudinary
+    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+    CLOUDINARY_FOLDER: process.env.CLOUDINARY_FOLDER || 'hospyn_ai',
 };
 //# sourceMappingURL=env.js.map

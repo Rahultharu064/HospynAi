@@ -138,6 +138,7 @@ export interface RagQueryResponse {
     confidence: number;
     tokensUsed: number;
     responseTime: number;
+    retrievalMethod?: 'postgresql_fts' | 'keyword';
 }
 export interface RagCitation {
     text: string;

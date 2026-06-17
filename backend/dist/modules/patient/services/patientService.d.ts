@@ -78,7 +78,7 @@ export declare class PatientService {
         description: string | null;
         fileName: string;
         mimeType: string;
-        s3Key: string;
+        cloudinaryPublicId: string;
         uploadedById: string;
     })[]>;
     /**

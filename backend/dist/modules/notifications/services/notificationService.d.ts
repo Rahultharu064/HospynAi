@@ -1,4 +1,4 @@
-import { CreateNotificationInput, NotificationQueryInput } from '../validators/notificationValidator';
+import { CreateNotificationInput, BulkNotificationInput, NotificationQueryInput } from '../validators/notificationValidator';
 import { NotificationResponse, NotificationListResponse, NotificationStats } from '../../../types/notificationTypes';
 export declare class NotificationService {
     /**
@@ -17,6 +17,14 @@ export declare class NotificationService {
         failed: number;
     }>;
     /**
+     * Send bulk notifications to multiple users
+     */
+    static sendBulkNotifications(dto: BulkNotificationInput, performedBy: string): Promise<{
+        total: number;
+        sent: number;
+        failed: number;
+    }>;
+    /**
      * List notifications
      */
     static listNotifications(query: NotificationQueryInput, currentUserId?: string): Promise<NotificationListResponse>;
@@ -24,6 +32,12 @@ export declare class NotificationService {
      * Mark as read
      */
     static markAsRead(notificationId: string, userId: string): Promise<NotificationResponse>;
+    /**
+     * Mark all notifications as read for a user
+     */
+    static markAllAsRead(userId: string): Promise<{
+        count: number;
+    }>;
     /**
      * Delete notification
      */
