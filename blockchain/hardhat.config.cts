@@ -33,9 +33,7 @@ export default {
     localhost: {
       url: process.env.LOCALHOST_RPC_URL || "http://127.0.0.1:8545",
       chainId: 31337,
-      accounts: process.env.BLOCKCHAIN_PRIVATE_KEY
-        ? [process.env.BLOCKCHAIN_PRIVATE_KEY]
-        : [],
+      // No accounts — use prefunded keys from `npm run node` (not MetaMask / BLOCKCHAIN_PRIVATE_KEY).
     },
     amoy: {
       url: process.env.POLYGON_AMOY_RPC || "https://rpc-amoy.polygon.technology",

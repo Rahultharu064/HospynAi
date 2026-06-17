@@ -11,7 +11,28 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 async function main() {
-  const signers = await ethers.getSigners();
+  const networkName = process.env.HARDHAT_NETWORK || "unknown";
+
+  let signers: Awaited<ReturnType<typeof ethers.getSigners>>;
+  try {
+    signers = await ethers.getSigners();
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      networkName === "localhost" &&
+      (message.includes("ECONNREFUSED") || message.includes("HH108"))
+    ) {
+      throw new Error(
+        "Cannot reach Hardhat node at http://127.0.0.1:8545\n\n" +
+          "Local deploy needs TWO terminals:\n" +
+          "  Terminal 1:  npm run node          (leave running)\n" +
+          "  Terminal 2:  npm run deploy:local\n\n" +
+          "Or use one-shot in-memory deploy:  npm run deploy:hardhat"
+      );
+    }
+    throw error;
+  }
+
   const deployer = signers[0];
   if (!deployer) {
     throw new Error(
@@ -28,9 +49,20 @@ async function main() {
   const balanceMatic = ethers.formatEther(balance);
   console.log("Account balance:", balanceMatic, "MATIC");
 
-  const networkName = process.env.HARDHAT_NETWORK || "unknown";
+  const isLocalNetwork = networkName === "localhost" || networkName === "hardhat";
+  if (networkName === "localhost" && balance === 0n) {
+    throw new Error(
+      "Deployer has 0 ETH on the local Hardhat node.\n\n" +
+        "Local deploy must use Hardhat's prefunded accounts, not your MetaMask wallet.\n" +
+        "Ensure hardhat.config does not pass BLOCKCHAIN_PRIVATE_KEY to localhost,\n" +
+        "then restart the node and run deploy again:\n\n" +
+        "  Terminal 1:  npm run node\n" +
+        "  Terminal 2:  npm run deploy:local"
+    );
+  }
+
   const minBalanceWei = ethers.parseEther("0.15");
-  if (balance < minBalanceWei) {
+  if (!isLocalNetwork && balance < minBalanceWei) {
     const explorerBase =
       networkName === "amoy"
         ? "https://amoy.polygonscan.com/address"
@@ -127,6 +159,12 @@ async function main() {
   console.log(`BLOCKCHAIN_NETWORK_ID=${chainId}`);
   if (process.env.HARDHAT_NETWORK === "localhost" || process.env.HARDHAT_NETWORK === "hardhat") {
     console.log("BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545");
+    console.log(
+      "# Local only — Hardhat account #0 (copy private key from `npm run node` output):"
+    );
+    console.log(`BLOCKCHAIN_PRIVATE_KEY=<hardhat-node-account-0-private-key>`);
+    console.log(`# Deployer used: ${deployer.address}`);
+    console.log("# Do NOT use your MetaMask key for localhost — it has 0 ETH on the local chain.");
   }
   console.log(`BLOCKCHAIN_DEPLOYMENTS_FILE=../blockchain/deployments/${addresses.network}.json`);
   console.log(`MEDICAL_RECORD_ANCHOR_ADDRESS=${addresses.medicalRecordAnchor}`);
