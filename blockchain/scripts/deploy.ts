@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 async function main() {
-  const networkName = process.env.HARDHAT_NETWORK || "unknown";
+  const networkName = hardhat.network.name;
 
   let signers: Awaited<ReturnType<typeof ethers.getSigners>>;
   try {
@@ -127,7 +127,7 @@ async function main() {
 
   // Save addresses
   const addresses = {
-    network: process.env.HARDHAT_NETWORK || "unknown",
+    network: networkName,
     medicalRecordAnchor: await anchor.getAddress(),
     patientConsent: await consent.getAddress(),
     prescriptionVerifier: await verifier.getAddress(),
@@ -147,9 +147,9 @@ async function main() {
 
   // Backend .env snippet for copy-paste
   const chainId =
-    process.env.HARDHAT_NETWORK === "polygon"
+    networkName === "polygon"
       ? 137
-      : process.env.HARDHAT_NETWORK === "amoy"
+      : networkName === "amoy"
         ? 80002
         : 31337;
 
@@ -157,7 +157,7 @@ async function main() {
   console.log("─".repeat(60));
   console.log("BLOCKCHAIN_ENABLED=true");
   console.log(`BLOCKCHAIN_NETWORK_ID=${chainId}`);
-  if (process.env.HARDHAT_NETWORK === "localhost" || process.env.HARDHAT_NETWORK === "hardhat") {
+  if (networkName === "localhost" || networkName === "hardhat") {
     console.log("BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545");
     console.log(
       "# Local only — Hardhat account #0 (copy private key from `npm run node` output):"

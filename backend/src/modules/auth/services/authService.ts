@@ -23,6 +23,7 @@ import {
   NotFoundError,
   ForbiddenError,
   AccountLockedError,
+  InternalServerError,
 } from '../../../utils/errors';
 import logger from '../../../utils/logger';
 
@@ -121,18 +122,23 @@ export class AuthService {
       return newUser;
     });
 
-    // Send verification email (non-blocking)
-    OtpService.createAndSendOtp(
-      user.id,
-      user.email,
-      user.phone,
-      'EMAIL_VERIFICATION',
-      'EMAIL'
-    ).catch((error) => {
+    // Send verification OTP — must succeed before returning success
+    try {
+      await OtpService.createAndSendOtp(
+        user.id,
+        user.email,
+        user.phone,
+        'EMAIL_VERIFICATION',
+        'EMAIL'
+      );
+    } catch (error) {
       logger.error('Failed to send verification email during registration:', error);
-    });
+      throw new InternalServerError(
+        'Account created but verification email could not be sent. Please use POST /api/v1/auth/resend-otp to try again.'
+      );
+    }
 
-    // Send welcome email (non-blocking)
+    // Welcome email is optional — do not block registration
     EmailService.sendWelcomeEmail(user.email, user.firstName).catch((error) => {
       logger.error('Failed to send welcome email during registration:', error);
     });

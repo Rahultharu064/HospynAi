@@ -7,7 +7,9 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "blockchain:node": "npm run node --prefix ../blockchain",
+    "blockchain:deploy": "npm run deploy:local --prefix ../blockchain"
   },
   "dependencies": {
     "@langchain/core": "^1.1.48",

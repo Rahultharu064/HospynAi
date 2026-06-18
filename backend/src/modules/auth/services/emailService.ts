@@ -4,16 +4,33 @@ import sgMail from '@sendgrid/mail';
 import { config } from '../../../config';
 import logger from '../../../utils/logger';
 
+function isValidSendGridKey(key: string): boolean {
+  if (!key || key.length < 20) return false;
+  if (/copied|example|your_|xxx/i.test(key)) return false;
+  return /^SG\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(key);
+}
+
+function hasSmtpConfig(): boolean {
+  return !!(config.email.smtp.user && config.email.smtp.password);
+}
+
 class EmailServiceClass {
   private transporter: nodemailer.Transporter | null = null;
   private useSendGrid: boolean = false;
 
   constructor() {
-    if (config.email.sendgridApiKey) {
-      sgMail.setApiKey(config.email.sendgridApiKey);
+    const preferSmtp = config.email.provider === 'smtp';
+    const sendgridKey = config.email.sendgridApiKey;
+
+    if (!preferSmtp && isValidSendGridKey(sendgridKey)) {
+      sgMail.setApiKey(sendgridKey);
       this.useSendGrid = true;
       logger.info('Email service initialized with SendGrid API');
-    } else {
+    } else if (sendgridKey && !preferSmtp) {
+      logger.warn('Invalid SENDGRID_API_KEY — falling back to SMTP');
+    }
+
+    if (hasSmtpConfig()) {
       this.transporter = nodemailer.createTransport({
         host: config.email.smtp.host,
         port: config.email.smtp.port,
@@ -23,54 +40,86 @@ class EmailServiceClass {
           pass: config.email.smtp.password,
         },
       });
-      logger.info('Email service initialized with SMTP fallback');
+      if (!this.useSendGrid) {
+        logger.info(`Email service initialized with SMTP (${config.email.smtp.host})`);
+      } else {
+        logger.info('SMTP transporter configured as email fallback');
+      }
+    } else if (!this.useSendGrid) {
+      logger.warn('No email provider configured — OTP emails will not be delivered');
     }
   }
 
-  async sendMail(to: string, subject: string, html: string): Promise<void> {
-    try {
-      if (this.useSendGrid) {
+  async sendMail(
+    to: string,
+    subject: string,
+    html: string,
+    options?: { throwOnError?: boolean }
+  ): Promise<void> {
+    const throwOnError = options?.throwOnError ?? false;
+
+    if (this.useSendGrid) {
+      try {
         await sgMail.send({
           to,
-          from: {
-            name: 'VoiceMed Pro',
-            email: config.email.from,
-          },
+          from: { name: 'VoiceMed Pro', email: config.email.from },
           subject,
           html,
         });
-      } else if (this.transporter) {
+        logger.info(`Email sent via SendGrid to ${to}: ${subject}`);
+        return;
+      } catch (error) {
+        logger.warn(`SendGrid failed for ${to}, trying SMTP fallback:`, error);
+        if (!this.transporter && throwOnError) {
+          throw error;
+        }
+      }
+    }
+
+    if (this.transporter) {
+      try {
         await this.transporter.sendMail({
           from: `"VoiceMed Pro" <${config.email.from}>`,
           to,
           subject,
           html,
         });
-      } else {
-        throw new Error('Email transporter not initialized');
+        logger.info(`Email sent via SMTP to ${to}: ${subject}`);
+        return;
+      } catch (error) {
+        logger.error(`SMTP failed for ${to}:`, error);
+        if (throwOnError) throw error;
+        return;
       }
-      logger.info(`Email sent to ${to}: ${subject}`);
-    } catch (error) {
-      logger.error(`Failed to send email to ${to}:`, error);
-      // Don't throw - email failures shouldn't break the app
     }
+
+    const err = new Error('No email provider available');
+    logger.error(`Failed to send email to ${to}: ${err.message}`);
+    if (throwOnError) throw err;
   }
 
-  async sendOtpEmail(
-    to: string,
-    otp: string,
-    type: string
-  ): Promise<void> {
+  async sendOtpEmail(to: string, otp: string, type: string): Promise<void> {
     const subjectMap: Record<string, string> = {
-      EMAIL_VERIFICATION: 'Verify your email address',
-      PASSWORD_RESET: 'Reset your password',
-      TWO_FACTOR: 'Two-factor authentication code',
+      EMAIL_VERIFICATION: 'Verify your email address — VoiceMed Pro',
+      PASSWORD_RESET: 'Reset your password — VoiceMed Pro',
+      TWO_FACTOR: 'Two-factor authentication code — VoiceMed Pro',
+      PHONE_VERIFICATION: 'Your verification code — VoiceMed Pro',
     };
 
-    const subject = subjectMap[type] || 'Your verification code';
+    const subject = subjectMap[type] || 'Your verification code — VoiceMed Pro';
     const html = this.getOtpTemplate(otp, type);
 
-    await this.sendMail(to, subject, html);
+    try {
+      await this.sendMail(to, subject, html, { throwOnError: true });
+      logger.info(`OTP email delivered to ${to} (${type})`);
+    } catch (error) {
+      if (config.nodeEnv === 'development') {
+        logger.warn(
+          `[DEV] OTP email failed for ${to}. Verification code: ${otp} (expires in ${config.otp.expiryMinutes} min)`
+        );
+      }
+      throw error;
+    }
   }
 
   async sendWelcomeEmail(to: string, firstName: string): Promise<void> {
@@ -91,19 +140,12 @@ class EmailServiceClass {
         <body>
           <div class="container">
             <div class="header">
-              <h1>Welcome to VoiceMed Pro 🎉</h1>
+              <h1>Welcome to VoiceMed Pro</h1>
             </div>
             <div class="content">
               <p>Hi ${firstName},</p>
-              <p>Welcome to VoiceMed Pro! We're excited to have you on board. Your account has been created successfully.</p>
-              <p>With VoiceMed Pro, you can:</p>
-              <ul>
-                <li>Book appointments seamlessly</li>
-                <li>Access your medical records securely</li>
-                <li>Connect with healthcare providers</li>
-                <li>Get AI-powered health assistance</li>
-              </ul>
-              <p>If you have any questions, feel free to reach out to our support team.</p>
+              <p>Welcome to VoiceMed Pro! Your account has been created successfully.</p>
+              <p>Please verify your email using the OTP code we sent in a separate email.</p>
               <p>Best regards,<br>The VoiceMed Pro Team</p>
             </div>
             <div class="footer">
@@ -141,10 +183,10 @@ class EmailServiceClass {
             </div>
             <div class="content">
               <p>Hi ${firstName},</p>
-              <p>This email is to confirm that the password for your VoiceMed Pro account has been changed successfully.</p>
+              <p>This email confirms that your VoiceMed Pro password was changed successfully.</p>
               <div class="warning-box">
                 <p><strong>Did you not make this change?</strong></p>
-                <p>If you did not authorize this change, please reset your password immediately or contact our support team to secure your account.</p>
+                <p>Reset your password immediately or contact support.</p>
               </div>
               <p>Best regards,<br>The VoiceMed Pro Team</p>
             </div>
@@ -159,7 +201,7 @@ class EmailServiceClass {
     await this.sendMail(to, 'VoiceMed Pro - Password Changed Successfully', html);
   }
 
-  private getOtpTemplate(otp: string, type: string): string {
+  private getOtpTemplate(otp: string, _type: string): string {
     return `
       <!DOCTYPE html>
       <html>

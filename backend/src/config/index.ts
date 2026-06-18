@@ -1,6 +1,30 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+const blockchainNetworkId = parseInt(
+  process.env.BLOCKCHAIN_NETWORK_ID ||
+    (process.env.NODE_ENV === 'production' ? '137' : '80002'),
+  10
+);
+
+function normalizePrivateKey(key: string): string {
+  if (!key) return '';
+  return key.startsWith('0x') ? key : `0x${key}`;
+}
+
+/** Prefer localhost.json for Hardhat (31337); ignore stale unknown.json from old deploys. */
+function resolveBlockchainDeploymentsFile(): string {
+  const configured = process.env.BLOCKCHAIN_DEPLOYMENTS_FILE || '';
+  const isStaleUnknown =
+    !configured || configured.includes('unknown.json');
+
+  if (blockchainNetworkId === 31337 && isStaleUnknown) {
+    return '../blockchain/deployments/localhost.json';
+  }
+
+  return configured;
+}
+
 export const config = {
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -42,12 +66,14 @@ export const config = {
   
   email: {
     from: process.env.FROM_EMAIL || process.env.EMAIL_FROM || 'noreply@voicemedpro.com',
+    /** smtp | sendgrid — use smtp for Gmail / Mailtrap */
+    provider: (process.env.EMAIL_PROVIDER || 'smtp').toLowerCase(),
     sendgridApiKey: process.env.SENDGRID_API_KEY || '',
     smtp: {
-      host: process.env.SMTP_HOST || 'smtp.mailtrap.io',
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT || '587'),
       user: process.env.SMTP_USER || '',
-      password: process.env.SMTP_PASSWORD || '',
+      password: (process.env.SMTP_PASSWORD || '').replace(/\s+/g, ''),
     },
   },
   
@@ -94,16 +120,12 @@ export const config = {
 
   blockchain: {
     enabled: process.env.BLOCKCHAIN_ENABLED === 'true',
-    networkId: parseInt(
-      process.env.BLOCKCHAIN_NETWORK_ID ||
-        (process.env.NODE_ENV === 'production' ? '137' : '80002'),
-      10
-    ),
-    privateKey: process.env.BLOCKCHAIN_PRIVATE_KEY || '',
+    networkId: blockchainNetworkId,
+    privateKey: normalizePrivateKey(process.env.BLOCKCHAIN_PRIVATE_KEY || ''),
     rpcUrl: process.env.BLOCKCHAIN_RPC_URL || '',
     polygonMainnetRpc: process.env.POLYGON_MAINNET_RPC || 'https://polygon-rpc.com',
     polygonAmoyRpc: process.env.POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology',
-    deploymentsFile: process.env.BLOCKCHAIN_DEPLOYMENTS_FILE || '',
+    deploymentsFile: resolveBlockchainDeploymentsFile(),
     defaultProviderAddress: process.env.BLOCKCHAIN_DEFAULT_PROVIDER_ADDRESS || '',
     contracts: {
       medicalRecordAnchor: process.env.MEDICAL_RECORD_ANCHOR_ADDRESS || '',
