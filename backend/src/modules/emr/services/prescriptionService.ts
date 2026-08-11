@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import { AuditService } from '../../auth/services/auditService';
 import { CreatePrescriptionInput } from '../validators/emrValidator';
@@ -56,7 +57,7 @@ export class PrescriptionService {
           endDate: data.endDate ? new Date(data.endDate) : null,
           refillsAllowed: data.refillsAllowed || 0,
           isControlled: data.isControlled || false,
-          drugInteractions: drugInteractions.length > 0 ? drugInteractions : null,
+          drugInteractions: drugInteractions.length > 0 ? drugInteractions : Prisma.JsonNull,
           createdById: userId,
         },
         include: {

@@ -2,48 +2,18 @@ import { AnchorRecordInput, VerifyRecordInput, BlockchainQueryInput, ConsentInpu
 import { BlockchainRecordResponse, BlockchainListResponse, VerificationResult, ConsentResponse, BlockchainStats } from '../../../types/blockchainTypes';
 export declare class BlockchainService {
     /**
-     * ============================================
-     * ANCHOR RECORD HASH
-     * ============================================
+     * Submit a PENDING blockchain_records row to the chain (used after EMR sign).
      */
+    static submitPendingAnchor(recordId: string): Promise<void>;
     static anchorRecord(data: AnchorRecordInput, userId: string, ipAddress: string, userAgent: string): Promise<BlockchainRecordResponse>;
-    /**
-     * ============================================
-     * VERIFY RECORD
-     * ============================================
-     */
     static verifyRecord(data: VerifyRecordInput): Promise<VerificationResult>;
-    /**
-     * ============================================
-     * LIST BLOCKCHAIN RECORDS
-     * ============================================
-     */
     static listRecords(query: BlockchainQueryInput): Promise<BlockchainListResponse>;
-    /**
-     * ============================================
-     * GET PATIENT BLOCKCHAIN AUDIT TRAIL
-     * ============================================
-     */
     static getPatientAuditTrail(patientId: string): Promise<BlockchainRecordResponse[]>;
-    /**
-     * ============================================
-     * BLOCKCHAIN STATISTICS
-     * ============================================
-     */
     static getStats(): Promise<BlockchainStats>;
-    /**
-     * ============================================
-     * CONSENT MANAGEMENT
-     * ============================================
-     */
     static grantConsent(data: ConsentInput, userId: string): Promise<ConsentResponse>;
-    /**
-     * ============================================
-     * REVOKE CONSENT
-     * ============================================
-     */
     static revokeConsent(consentId: string, reason: string | null, userId: string): Promise<ConsentResponse>;
     private static getBlockchainInclude;
     private static formatBlockchainResponse;
+    private static formatConsentResponse;
 }
 //# sourceMappingURL=blockchainService.d.ts.map

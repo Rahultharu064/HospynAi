@@ -1,51 +1,51 @@
+export interface ChainTxResult {
+    txHash: string;
+    blockNumber: number;
+    timestamp: string;
+}
+export interface DeploymentAddresses {
+    medicalRecordAnchor?: string;
+    patientConsent?: string;
+    prescriptionVerifier?: string;
+    medicalDataRegistry?: string;
+}
 export declare class PolygonClient {
     private provider;
     private signer;
-    private contract;
-    private networkId;
+    private anchorContract;
+    private consentContract;
+    private registryContract;
+    private readonly networkId;
+    private readonly deployments;
     constructor();
     private initialize;
-    /**
-     * Anchor data hash on Polygon blockchain
-     */
-    anchorHash(dataHash: string, recordType: string, patientId: string): Promise<{
-        txHash: string;
-        blockNumber: number;
-        timestamp: string;
-    } | null>;
-    /**
-     * Verify hash on blockchain
-     */
+    getNetworkId(): number;
+    getSignerAddress(): string | null;
+    getDefaultProviderAddress(): string;
+    isReady(): boolean;
+    isConsentReady(): boolean;
+    anchorHash(dataHash: string, recordType: string, patientPublicId: string): Promise<ChainTxResult | null>;
     verifyHash(dataHash: string): Promise<{
         exists: boolean;
         anchoredBy: string | null;
         timestamp: number | null;
+        isRevoked: boolean;
     }>;
-    /**
-     * Get explorer URL for transaction
-     */
-    getExplorerUrl(txHash: string): string;
-    /**
-     * Get explorer URL for address
-     */
-    getAddressExplorerUrl(address: string): string;
-    /**
-     * Estimate gas for anchoring
-     */
-    estimateGas(dataHash: string, recordType: string, patientId: string): Promise<{
+    grantConsent(patientPublicId: string, providerAddress: string, recordType: string, accessLevel: string, expiresAtUnix: number): Promise<{
+        txHash: string;
+        onChainConsentId: string;
+    } | null>;
+    revokeConsent(onChainConsentId: string, reason: string): Promise<string | null>;
+    estimateGas(dataHash: string, recordType: string, patientPublicId: string): Promise<{
         gasLimit: number;
         gasPrice: string;
         estimatedCost: string;
         currency: string;
     }>;
-    /**
-     * Get network name
-     */
+    getExplorerUrl(txHash: string): string;
+    getAddressExplorerUrl(address: string): string;
     getNetworkName(): string;
-    /**
-     * Check if client is ready
-     */
-    isReady(): boolean;
+    private recordRegistryAudit;
     private getRpcUrl;
 }
 export declare const polygonClient: PolygonClient;

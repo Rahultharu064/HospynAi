@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import { config } from '../../../config';
 import { AuditService } from '../../auth/services/auditService';
@@ -59,7 +60,7 @@ export class AdminService {
           email: data.email || null,
           website: data.website || null,
           taxId: data.taxId || null,
-          settings: data.settings || null,
+          settings: data.settings || Prisma.JsonNull,
         },
       });
 

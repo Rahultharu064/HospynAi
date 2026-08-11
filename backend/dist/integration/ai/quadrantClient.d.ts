@@ -30,7 +30,7 @@ export declare class QdrantService {
     /**
      * Search memories
      */
-    searchMemories(vector: number[], limit?: number, filter?: Record<string, any>): Promise<Array<{
+    searchMemories(vector: number[], limit?: number, scoreThreshold?: number): Promise<Array<{
         id: string;
         score: number;
         payload: any;

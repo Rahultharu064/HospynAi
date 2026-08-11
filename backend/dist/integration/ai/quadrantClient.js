@@ -77,11 +77,11 @@ class QdrantService {
     /**
      * Search memories
      */
-    async searchMemories(vector, limit = 10, filter) {
+    async searchMemories(vector, limit = 10, scoreThreshold) {
         const results = await this.client.search(this.memoryCollection, {
             vector,
             limit,
-            filter: filter ? { must: [filter] } : undefined,
+            score_threshold: scoreThreshold,
             with_payload: true,
         });
         return results.map((r) => ({

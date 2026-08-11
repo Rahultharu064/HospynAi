@@ -102,11 +102,15 @@ class AuthService {
             });
             return newUser;
         });
-        // Send verification email (non-blocking)
-        otpServices_1.OtpService.createAndSendOtp(user.id, user.email, user.phone, 'EMAIL_VERIFICATION', 'EMAIL').catch((error) => {
+        // Send verification OTP — must succeed before returning success
+        try {
+            await otpServices_1.OtpService.createAndSendOtp(user.id, user.email, user.phone, 'EMAIL_VERIFICATION', 'EMAIL');
+        }
+        catch (error) {
             logger_1.default.error('Failed to send verification email during registration:', error);
-        });
-        // Send welcome email (non-blocking)
+            throw new errors_1.InternalServerError('Account created but verification email could not be sent. Please use POST /api/v1/auth/resend-otp to try again.');
+        }
+        // Welcome email is optional — do not block registration
         emailService_1.EmailService.sendWelcomeEmail(user.email, user.firstName).catch((error) => {
             logger_1.default.error('Failed to send welcome email during registration:', error);
         });

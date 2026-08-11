@@ -185,7 +185,7 @@ function setupNotificationSocket(io) {
  */
 async function sendRealTimeNotification(userId, notification) {
     try {
-        const { io } = await Promise.resolve().then(() => __importStar(require('../server')));
+        const { io } = await Promise.resolve().then(() => __importStar(require('../../server')));
         if (io) {
             io.to(`user:${userId}`).emit('new-notification', {
                 ...notification,
@@ -202,7 +202,7 @@ async function sendRealTimeNotification(userId, notification) {
  */
 async function sendBroadcastNotification(role, notification) {
     try {
-        const { io } = await Promise.resolve().then(() => __importStar(require('../server')));
+        const { io } = await Promise.resolve().then(() => __importStar(require('../../server')));
         if (io) {
             io.to(`role:${role}`).emit('broadcast-notification', {
                 ...notification,

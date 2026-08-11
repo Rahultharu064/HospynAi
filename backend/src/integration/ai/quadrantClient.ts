@@ -100,12 +100,12 @@ export class QdrantService {
   async searchMemories(
     vector: number[],
     limit: number = 10,
-    filter?: Record<string, any>
+    scoreThreshold?: number
   ): Promise<Array<{ id: string; score: number; payload: any }>> {
     const results = await this.client.search(this.memoryCollection, {
       vector,
       limit,
-      filter: filter ? { must: [filter] } : undefined,
+      score_threshold: scoreThreshold,
       with_payload: true,
     });
 

@@ -31,7 +31,6 @@ export declare const chatMessageSchema: z.ZodObject<{
         language: string;
         context: "DOCTOR" | "PATIENT" | "GENERAL" | "TRIAGE";
         stream: boolean;
-        sessionId?: string | null | undefined;
         attachments?: {
             url: string;
             name: string;
@@ -40,9 +39,9 @@ export declare const chatMessageSchema: z.ZodObject<{
             size?: number | undefined;
         }[] | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
     }, {
         message: string;
-        sessionId?: string | null | undefined;
         attachments?: {
             url: string;
             name: string;
@@ -51,6 +50,7 @@ export declare const chatMessageSchema: z.ZodObject<{
             size?: number | undefined;
         }[] | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         language?: string | undefined;
         context?: "DOCTOR" | "PATIENT" | "GENERAL" | "TRIAGE" | undefined;
         stream?: boolean | undefined;
@@ -61,7 +61,6 @@ export declare const chatMessageSchema: z.ZodObject<{
         language: string;
         context: "DOCTOR" | "PATIENT" | "GENERAL" | "TRIAGE";
         stream: boolean;
-        sessionId?: string | null | undefined;
         attachments?: {
             url: string;
             name: string;
@@ -70,11 +69,11 @@ export declare const chatMessageSchema: z.ZodObject<{
             size?: number | undefined;
         }[] | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
     };
 }, {
     body: {
         message: string;
-        sessionId?: string | null | undefined;
         attachments?: {
             url: string;
             name: string;
@@ -83,6 +82,7 @@ export declare const chatMessageSchema: z.ZodObject<{
             size?: number | undefined;
         }[] | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         language?: string | undefined;
         context?: "DOCTOR" | "PATIENT" | "GENERAL" | "TRIAGE" | undefined;
         stream?: boolean | undefined;
@@ -99,12 +99,12 @@ export declare const audioMessageSchema: z.ZodObject<{
         format: "webm" | "mp3" | "wav" | "m4a";
         language: string;
         context: "DOCTOR" | "PATIENT" | "GENERAL" | "TRIAGE";
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
     }, {
         format?: "webm" | "mp3" | "wav" | "m4a" | undefined;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         language?: string | undefined;
         context?: "DOCTOR" | "PATIENT" | "GENERAL" | "TRIAGE" | undefined;
     }>;
@@ -113,14 +113,14 @@ export declare const audioMessageSchema: z.ZodObject<{
         format: "webm" | "mp3" | "wav" | "m4a";
         language: string;
         context: "DOCTOR" | "PATIENT" | "GENERAL" | "TRIAGE";
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
     };
 }, {
     body: {
         format?: "webm" | "mp3" | "wav" | "m4a" | undefined;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         language?: string | undefined;
         context?: "DOCTOR" | "PATIENT" | "GENERAL" | "TRIAGE" | undefined;
     };
@@ -134,27 +134,27 @@ export declare const chatHistorySchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         page: number;
         limit: number;
-        sessionId?: string | undefined;
         patientId?: string | undefined;
-    }, {
         sessionId?: string | undefined;
+    }, {
         page?: string | undefined;
         limit?: string | undefined;
         patientId?: string | undefined;
+        sessionId?: string | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
     query: {
         page: number;
         limit: number;
-        sessionId?: string | undefined;
         patientId?: string | undefined;
+        sessionId?: string | undefined;
     };
 }, {
     query: {
-        sessionId?: string | undefined;
         page?: string | undefined;
         limit?: string | undefined;
         patientId?: string | undefined;
+        sessionId?: string | undefined;
     };
 }>;
 export declare const clearHistorySchema: z.ZodObject<{
@@ -162,21 +162,21 @@ export declare const clearHistorySchema: z.ZodObject<{
         sessionId: z.ZodOptional<z.ZodString>;
         patientId: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        sessionId?: string | undefined;
         patientId?: string | undefined;
+        sessionId?: string | undefined;
     }, {
-        sessionId?: string | undefined;
         patientId?: string | undefined;
+        sessionId?: string | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
     body: {
-        sessionId?: string | undefined;
         patientId?: string | undefined;
+        sessionId?: string | undefined;
     };
 }, {
     body: {
-        sessionId?: string | undefined;
         patientId?: string | undefined;
+        sessionId?: string | undefined;
     };
 }>;
 export type ChatMessageInput = z.infer<typeof chatMessageSchema>['body'];

@@ -22,8 +22,13 @@ export const createNotificationSchema = z.object({
     channel: z.nativeEnum(NotificationChannel).optional().default(NotificationChannel.EMAIL),
 
     templateId: z.string().max(100).optional().nullable(),
+    templateData: z.record(z.any()).optional(),
 
     metadata: z.record(z.any()).optional().nullable(),
+
+    priority: z.enum(['low', 'normal', 'high', 'urgent']).optional().default('normal'),
+    scheduledFor: z.string().datetime().optional().nullable(),
+    ttl: z.number().positive().optional(),
 
     sendImmediately: z.boolean().optional().default(true),
   }),
@@ -89,7 +94,7 @@ export const notificationPreferencesSchema = z.object({
   }),
 });
 
-export type CreateNotificationInput = z.infer<typeof createNotificationSchema>['body'];
+export type CreateNotificationInput = z.input<typeof createNotificationSchema>['body'];
 export type BulkNotificationInput = z.infer<typeof bulkNotificationSchema>['body'];
 export type UpdateNotificationInput = z.infer<typeof updateNotificationSchema>['body'];
 export type NotificationQueryInput = z.infer<typeof notificationQuerySchema>['query'];

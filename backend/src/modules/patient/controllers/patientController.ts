@@ -6,6 +6,7 @@ import {
   CreatePatientInput,
   UpdatePatientInput,
   PatientQueryInput,
+  UploadDocumentInput,
 } from '../validators/patientValidator';
 
 export class PatientController {
@@ -150,7 +151,7 @@ export class PatientController {
   // POST /api/v1/patients/:id/documents
   static uploadDocument = AsyncHandler.handle(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { documentType, title, description } = req.body;
+    const { documentType, title, description }: UploadDocumentInput = req.body;
     const file = req.file;
     const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedError();

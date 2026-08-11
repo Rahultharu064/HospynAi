@@ -25,5 +25,17 @@ export declare const env: {
     CLOUDINARY_API_KEY: string | undefined;
     CLOUDINARY_API_SECRET: string | undefined;
     CLOUDINARY_FOLDER: string;
+    BLOCKCHAIN_ENABLED: boolean;
+    BLOCKCHAIN_NETWORK_ID: number;
+    BLOCKCHAIN_PRIVATE_KEY: string | undefined;
+    BLOCKCHAIN_RPC_URL: string | undefined;
+    POLYGON_MAINNET_RPC: string;
+    POLYGON_AMOY_RPC: string;
+    BLOCKCHAIN_DEPLOYMENTS_FILE: string | undefined;
+    BLOCKCHAIN_DEFAULT_PROVIDER_ADDRESS: string | undefined;
+    MEDICAL_RECORD_ANCHOR_ADDRESS: string | undefined;
+    PATIENT_CONSENT_ADDRESS: string | undefined;
+    PRESCRIPTION_VERIFIER_ADDRESS: string | undefined;
+    MEDICAL_DATA_REGISTRY_ADDRESS: string | undefined;
 };
 //# sourceMappingURL=env.d.ts.map

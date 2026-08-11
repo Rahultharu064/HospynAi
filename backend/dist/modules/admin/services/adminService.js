@@ -5,12 +5,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminService = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../../../config/prisma"));
 const config_1 = require("../../../config");
 const auditService_1 = require("../../auth/services/auditService");
 const emailService_1 = require("../../auth/services/emailService");
 const errors_1 = require("../../../utils/errors");
-const client_1 = require("@prisma/client");
+const client_2 = require("@prisma/client");
 const logger_1 = __importDefault(require("../../../utils/logger"));
 class AdminService {
     /**
@@ -44,7 +45,7 @@ class AdminService {
                     email: data.email || null,
                     website: data.website || null,
                     taxId: data.taxId || null,
-                    settings: data.settings || null,
+                    settings: data.settings || client_1.Prisma.JsonNull,
                 },
             });
             // Create main branch
@@ -66,8 +67,8 @@ class AdminService {
                     passwordHash: hashedPassword,
                     firstName: data.adminFirstName,
                     lastName: data.adminLastName,
-                    role: client_1.UserRole.ADMIN,
-                    status: client_1.UserStatus.ACTIVE,
+                    role: client_2.UserRole.ADMIN,
+                    status: client_2.UserStatus.ACTIVE,
                     isEmailVerified: true,
                     organizationId: org.id,
                     branchId: branch.id,
@@ -80,8 +81,8 @@ class AdminService {
             const subscription = await tx.subscription.create({
                 data: {
                     organizationId: org.id,
-                    plan: data.plan || client_1.SubscriptionPlan.STARTER,
-                    status: client_1.SubscriptionStatus.TRIAL,
+                    plan: data.plan || client_2.SubscriptionPlan.STARTER,
+                    status: client_2.SubscriptionStatus.TRIAL,
                     startDate: new Date(),
                     trialEndsAt: trialEnd,
                     maxUsers: data.maxUsers || 10,
@@ -234,7 +235,7 @@ class AdminService {
                 lastName: data.lastName,
                 phone: data.phone || null,
                 role: data.role,
-                status: data.status || client_1.UserStatus.ACTIVE,
+                status: data.status || client_2.UserStatus.ACTIVE,
                 organizationId: data.organizationId || null,
                 branchId: data.branchId || null,
                 isEmailVerified: true,
@@ -345,17 +346,17 @@ class AdminService {
                 const updateData = {};
                 switch (data.action) {
                     case 'ACTIVATE':
-                        updateData.status = client_1.UserStatus.ACTIVE;
+                        updateData.status = client_2.UserStatus.ACTIVE;
                         break;
                     case 'DEACTIVATE':
-                        updateData.status = client_1.UserStatus.INACTIVE;
+                        updateData.status = client_2.UserStatus.INACTIVE;
                         break;
                     case 'SUSPEND':
-                        updateData.status = client_1.UserStatus.SUSPENDED;
+                        updateData.status = client_2.UserStatus.SUSPENDED;
                         break;
                     case 'DELETE':
                         updateData.deletedAt = new Date();
-                        updateData.status = client_1.UserStatus.INACTIVE;
+                        updateData.status = client_2.UserStatus.INACTIVE;
                         break;
                     case 'CHANGE_ROLE':
                         if (data.role)

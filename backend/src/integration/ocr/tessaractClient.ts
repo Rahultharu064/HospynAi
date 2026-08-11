@@ -36,11 +36,17 @@ export class TesseractClient {
 
     try {
       const result = await this.worker!.recognize(imagePath);
-      
+
+      const words: Tesseract.Word[] = (result.data.blocks || []).flatMap((block) =>
+        block.paragraphs.flatMap((paragraph) =>
+          paragraph.lines.flatMap((line) => line.words)
+        )
+      );
+
       return {
         text: result.data.text,
         confidence: result.data.confidence,
-        words: result.data.words as Tesseract.Word[],
+        words,
       };
     } catch (error) {
       logger.error('Tesseract text extraction failed:', error);

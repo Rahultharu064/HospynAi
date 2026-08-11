@@ -19,7 +19,11 @@ exports.createNotificationSchema = zod_1.z.object({
         }).min(1).max(50),
         channel: zod_1.z.nativeEnum(client_1.NotificationChannel).optional().default(client_1.NotificationChannel.EMAIL),
         templateId: zod_1.z.string().max(100).optional().nullable(),
+        templateData: zod_1.z.record(zod_1.z.any()).optional(),
         metadata: zod_1.z.record(zod_1.z.any()).optional().nullable(),
+        priority: zod_1.z.enum(['low', 'normal', 'high', 'urgent']).optional().default('normal'),
+        scheduledFor: zod_1.z.string().datetime().optional().nullable(),
+        ttl: zod_1.z.number().positive().optional(),
         sendImmediately: zod_1.z.boolean().optional().default(true),
     }),
 });

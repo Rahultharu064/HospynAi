@@ -94,8 +94,8 @@ class AuditService {
     static async getUserAuditTrail(userId, page = 1, limit = 50) {
         return this.queryLogs({
             userId,
-            page: String(page),
-            limit: String(limit),
+            page,
+            limit,
             sortBy: 'createdAt',
             sortOrder: 'desc',
         });
@@ -253,7 +253,13 @@ class AuditService {
      * Export audit logs
      */
     static async exportLogs(query, format = 'json') {
-        const { logs } = await this.queryLogs({ ...query, limit: '10000' });
+        const { logs } = await this.queryLogs({
+            ...query,
+            page: 1,
+            limit: 10000,
+            sortBy: 'createdAt',
+            sortOrder: 'desc',
+        });
         const filename = `audit-logs-${new Date().toISOString().split('T')[0]}.${format}`;
         return { data: logs, filename };
     }

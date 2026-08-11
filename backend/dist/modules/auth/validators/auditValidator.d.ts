@@ -695,7 +695,7 @@ export declare const anonymizeDataSchema: z.ZodObject<{
         fields?: string[] | undefined;
     };
 }>;
-export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
+export type AuditLogEntry = z.input<typeof auditLogEntrySchema>;
 export type AuditQueryInput = z.infer<typeof auditQuerySchema>['query'];
 export type UserAuditTrailInput = z.infer<typeof userAuditTrailSchema>;
 export type ResourceAuditTrailInput = z.infer<typeof resourceAuditTrailSchema>;

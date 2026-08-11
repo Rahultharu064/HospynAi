@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { CreateLabReportInput } from '../validators/emrValidator';
 import { LabReportResponse } from '../../../types/emrTypes';
 export declare class LabReportService {
@@ -23,15 +24,15 @@ export declare class LabReportService {
         status: import(".prisma/client").$Enums.LabReportStatus;
         createdAt: Date;
         updatedAt: Date;
-        attachments: import("@prisma/client/runtime/library").JsonValue | null;
+        attachments: Prisma.JsonValue | null;
         patientId: string;
         createdById: string;
         doctorId: string;
         testName: string;
         medicalRecordId: string | null;
         testCategory: string | null;
-        results: import("@prisma/client/runtime/library").JsonValue;
-        normalRanges: import("@prisma/client/runtime/library").JsonValue | null;
+        results: Prisma.JsonValue;
+        normalRanges: Prisma.JsonValue | null;
         interpretation: string | null;
         orderedAt: Date;
         collectedAt: Date | null;

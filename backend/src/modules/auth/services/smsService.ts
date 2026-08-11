@@ -12,10 +12,10 @@ class SmsServiceClass {
     }
   }
 
-  async sendSms(to: string, body: string): Promise<void> {
+  async sendSms(to: string, body: string): Promise<boolean> {
     if (!this.client) {
       logger.warn('Twilio not configured. SMS not sent.');
-      return;
+      return false;
     }
 
     try {
@@ -25,8 +25,10 @@ class SmsServiceClass {
         to,
       });
       logger.info(`SMS sent to ${to}`);
+      return true;
     } catch (error) {
       logger.error(`Failed to send SMS to ${to}:`, error);
+      return false;
     }
   }
 

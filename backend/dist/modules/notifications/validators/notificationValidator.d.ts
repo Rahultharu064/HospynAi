@@ -12,37 +12,53 @@ export declare const createNotificationSchema: z.ZodObject<{
             VOICE_CALL: "VOICE_CALL";
         }>>>;
         templateId: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+        templateData: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodAny>>;
         metadata: z.ZodNullable<z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodAny>>>;
+        priority: z.ZodDefault<z.ZodOptional<z.ZodEnum<["low", "normal", "high", "urgent"]>>>;
+        scheduledFor: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+        ttl: z.ZodOptional<z.ZodNumber>;
         sendImmediately: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     }, "strip", z.ZodTypeAny, {
         message: string;
         userId: string;
+        priority: "urgent" | "low" | "normal" | "high";
         type: string;
         channel: "EMAIL" | "SMS" | "PUSH" | "VOICE_CALL";
         title: string;
         sendImmediately: boolean;
         metadata?: Record<string, any> | null | undefined;
         templateId?: string | null | undefined;
+        templateData?: Record<string, any> | undefined;
+        scheduledFor?: string | null | undefined;
+        ttl?: number | undefined;
     }, {
         message: string;
         userId: string;
         type: string;
         title: string;
         metadata?: Record<string, any> | null | undefined;
+        priority?: "urgent" | "low" | "normal" | "high" | undefined;
         templateId?: string | null | undefined;
         channel?: "EMAIL" | "SMS" | "PUSH" | "VOICE_CALL" | undefined;
+        templateData?: Record<string, any> | undefined;
+        scheduledFor?: string | null | undefined;
+        ttl?: number | undefined;
         sendImmediately?: boolean | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
     body: {
         message: string;
         userId: string;
+        priority: "urgent" | "low" | "normal" | "high";
         type: string;
         channel: "EMAIL" | "SMS" | "PUSH" | "VOICE_CALL";
         title: string;
         sendImmediately: boolean;
         metadata?: Record<string, any> | null | undefined;
         templateId?: string | null | undefined;
+        templateData?: Record<string, any> | undefined;
+        scheduledFor?: string | null | undefined;
+        ttl?: number | undefined;
     };
 }, {
     body: {
@@ -51,8 +67,12 @@ export declare const createNotificationSchema: z.ZodObject<{
         type: string;
         title: string;
         metadata?: Record<string, any> | null | undefined;
+        priority?: "urgent" | "low" | "normal" | "high" | undefined;
         templateId?: string | null | undefined;
         channel?: "EMAIL" | "SMS" | "PUSH" | "VOICE_CALL" | undefined;
+        templateData?: Record<string, any> | undefined;
+        scheduledFor?: string | null | undefined;
+        ttl?: number | undefined;
         sendImmediately?: boolean | undefined;
     };
 }>;
@@ -296,7 +316,7 @@ export declare const notificationPreferencesSchema: z.ZodObject<{
         reminderIntervals?: number[] | undefined;
     };
 }>;
-export type CreateNotificationInput = z.infer<typeof createNotificationSchema>['body'];
+export type CreateNotificationInput = z.input<typeof createNotificationSchema>['body'];
 export type BulkNotificationInput = z.infer<typeof bulkNotificationSchema>['body'];
 export type UpdateNotificationInput = z.infer<typeof updateNotificationSchema>['body'];
 export type NotificationQueryInput = z.infer<typeof notificationQuerySchema>['query'];

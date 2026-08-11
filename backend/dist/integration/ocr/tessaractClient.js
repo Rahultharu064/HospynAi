@@ -36,10 +36,11 @@ class TesseractClient {
         }
         try {
             const result = await this.worker.recognize(imagePath);
+            const words = (result.data.blocks || []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.flatMap((line) => line.words)));
             return {
                 text: result.data.text,
                 confidence: result.data.confidence,
-                words: result.data.words,
+                words,
             };
         }
         catch (error) {

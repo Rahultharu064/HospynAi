@@ -1,3 +1,4 @@
+import { DocumentType } from '@prisma/client';
 import { CreatePatientInput, UpdatePatientInput, PatientQueryInput } from '../validators/patientValidator';
 import { PatientResponse, PatientListResponse, PatientStats, BulkOperationResult, PatientDocumentResponse } from '../../../types/patientTypes';
 export declare class PatientService {
@@ -60,7 +61,7 @@ export declare class PatientService {
      * PATIENT DOCUMENTS
      * ============================================
      */
-    static uploadDocument(patientId: string, documentType: string, title: string, description: string | undefined, file: Express.Multer.File, userId: string): Promise<PatientDocumentResponse>;
+    static uploadDocument(patientId: string, documentType: DocumentType, title: string, description: string | undefined, file: Express.Multer.File, userId: string): Promise<PatientDocumentResponse>;
     static getPatientDocuments(patientId: string): Promise<({
         uploadedBy: {
             id: string;

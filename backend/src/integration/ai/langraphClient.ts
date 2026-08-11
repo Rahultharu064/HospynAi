@@ -1,6 +1,6 @@
 import { StateGraph, END, START, Annotation } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
-import { Tool } from "@langchain/core/tools";
+import { StructuredTool } from "@langchain/core/tools";
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { config } from "../../config";
@@ -41,7 +41,7 @@ const AgentState = Annotation.Root({
 /**
  * Schedule appointment tool
  */
-class ScheduleAppointmentTool extends Tool {
+class ScheduleAppointmentTool extends StructuredTool {
   name = "schedule_appointment";
   description = "Schedule a medical appointment for a patient. Input should be a JSON with patientId, doctorId, date, time, and reason.";
 
@@ -127,7 +127,7 @@ class ScheduleAppointmentTool extends Tool {
 /**
  * Search patient records tool
  */
-class SearchPatientRecordsTool extends Tool {
+class SearchPatientRecordsTool extends StructuredTool {
   name = "search_patient_records";
   description = "Search patient medical records. Input should be a JSON with patientId and optional query.";
 
@@ -184,7 +184,7 @@ class SearchPatientRecordsTool extends Tool {
 /**
  * Check drug interactions tool
  */
-class CheckDrugInteractionsTool extends Tool {
+class CheckDrugInteractionsTool extends StructuredTool {
   name = "check_drug_interactions";
   description = "Check for potential drug interactions. Input should be a JSON with drugName and patientId.";
 
@@ -245,7 +245,7 @@ class CheckDrugInteractionsTool extends Tool {
 /**
  * Analyze symptoms tool
  */
-class AnalyzeSymptomsTool extends Tool {
+class AnalyzeSymptomsTool extends StructuredTool {
   name = "analyze_symptoms";
   description = "Analyze patient symptoms and provide triage recommendation. Input should be a JSON with symptoms array and patientId.";
 
@@ -263,14 +263,19 @@ class AnalyzeSymptomsTool extends Tool {
         const patient = await prisma.patient.findUnique({
           where: { id: input.patientId },
           select: {
-            age: true,
+            dateOfBirth: true,
             gender: true,
             allergies: true,
             chronicConditions: true,
             currentMedications: true,
           },
         });
-        if (patient) patientContext = patient;
+        if (patient) {
+          const age = patient.dateOfBirth
+            ? Math.floor((Date.now() - patient.dateOfBirth.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+            : null;
+          patientContext = { ...patient, age };
+        }
       }
 
       // Emergency symptoms check
@@ -333,7 +338,7 @@ class AnalyzeSymptomsTool extends Tool {
 /**
  * Generate prescription tool
  */
-class GeneratePrescriptionTool extends Tool {
+class GeneratePrescriptionTool extends StructuredTool {
   name = "generate_prescription";
   description = "Generate a new prescription for a patient. Input should be a JSON with patientId, drugName, dosage, frequency, and duration.";
 
@@ -372,7 +377,7 @@ class GeneratePrescriptionTool extends Tool {
 /**
  * Query knowledge base tool
  */
-class QueryKnowledgeBaseTool extends Tool {
+class QueryKnowledgeBaseTool extends StructuredTool {
   name = "query_knowledge_base";
   description = "Search the medical knowledge base for information. Input should be a JSON with query string.";
 
@@ -419,7 +424,7 @@ class QueryKnowledgeBaseTool extends Tool {
  */
 export class LangGraphAgent {
   private model: ChatOpenAI;
-  private tools: Tool[];
+  private tools: StructuredTool[];
   private graph: any;
   private compiledGraph: any;
 
@@ -642,7 +647,7 @@ export class LangGraphAgent {
 
         // Execute tool
         logger.info(`[LangGraph] Executing tool: ${toolName} with params:`, params);
-        const result = await tool._call(params);
+        const result = await tool.invoke(params);
         toolResults[toolName] = JSON.parse(result);
       } catch (error: any) {
         logger.error(`Tool execution error (${toolName}):`, error);
@@ -809,8 +814,8 @@ export class LangGraphAgent {
     }
 
     try {
-      const result = await tool._call(parameters);
-      return JSON.parse(result as string);
+      const result = await tool.invoke(parameters);
+      return JSON.parse(result);
     } catch (error: any) {
       return { success: false, message: error.message };
     }

@@ -6,6 +6,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
+const blockchainNetworkId = parseInt(process.env.BLOCKCHAIN_NETWORK_ID ||
+    (process.env.NODE_ENV === 'production' ? '137' : '80002'), 10);
+function normalizePrivateKey(key) {
+    if (!key)
+        return '';
+    return key.startsWith('0x') ? key : `0x${key}`;
+}
+/** Prefer localhost.json for Hardhat (31337); ignore stale unknown.json from old deploys. */
+function resolveBlockchainDeploymentsFile() {
+    const configured = process.env.BLOCKCHAIN_DEPLOYMENTS_FILE || '';
+    const isStaleUnknown = !configured || configured.includes('unknown.json');
+    if (blockchainNetworkId === 31337 && isStaleUnknown) {
+        return '../blockchain/deployments/localhost.json';
+    }
+    return configured;
+}
 exports.config = {
     port: process.env.PORT || 3000,
     nodeEnv: process.env.NODE_ENV || 'development',
@@ -41,12 +57,14 @@ exports.config = {
     },
     email: {
         from: process.env.FROM_EMAIL || process.env.EMAIL_FROM || 'noreply@voicemedpro.com',
+        /** smtp | sendgrid — use smtp for Gmail / Mailtrap */
+        provider: (process.env.EMAIL_PROVIDER || 'smtp').toLowerCase(),
         sendgridApiKey: process.env.SENDGRID_API_KEY || '',
         smtp: {
-            host: process.env.SMTP_HOST || 'smtp.mailtrap.io',
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
             port: parseInt(process.env.SMTP_PORT || '587'),
             user: process.env.SMTP_USER || '',
-            password: process.env.SMTP_PASSWORD || '',
+            password: (process.env.SMTP_PASSWORD || '').replace(/\s+/g, ''),
         },
     },
     twilio: {
@@ -83,6 +101,22 @@ exports.config = {
     openai: {
         apiKey: process.env.OPENAI_API_KEY || '',
         embeddingModel: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
+    },
+    blockchain: {
+        enabled: process.env.BLOCKCHAIN_ENABLED === 'true',
+        networkId: blockchainNetworkId,
+        privateKey: normalizePrivateKey(process.env.BLOCKCHAIN_PRIVATE_KEY || ''),
+        rpcUrl: process.env.BLOCKCHAIN_RPC_URL || '',
+        polygonMainnetRpc: process.env.POLYGON_MAINNET_RPC || 'https://polygon-rpc.com',
+        polygonAmoyRpc: process.env.POLYGON_AMOY_RPC || 'https://rpc-amoy.polygon.technology',
+        deploymentsFile: resolveBlockchainDeploymentsFile(),
+        defaultProviderAddress: process.env.BLOCKCHAIN_DEFAULT_PROVIDER_ADDRESS || '',
+        contracts: {
+            medicalRecordAnchor: process.env.MEDICAL_RECORD_ANCHOR_ADDRESS || '',
+            patientConsent: process.env.PATIENT_CONSENT_ADDRESS || '',
+            prescriptionVerifier: process.env.PRESCRIPTION_VERIFIER_ADDRESS || '',
+            medicalDataRegistry: process.env.MEDICAL_DATA_REGISTRY_ADDRESS || '',
+        },
     },
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 };

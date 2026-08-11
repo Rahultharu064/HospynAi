@@ -1,5 +1,5 @@
 import prisma from '../../../config/prisma';
-import { AuditLogEntry, AuditQueryInput } from '../validators/auditValidator';
+import { AuditLogEntry, AuditQueryInput, ExportAuditInput } from '../validators/auditValidator';
 import {
   AuditResponse,
   AuditListResponse,
@@ -109,8 +109,8 @@ export class AuditService {
   ): Promise<AuditListResponse> {
     return this.queryLogs({
       userId,
-      page: String(page),
-      limit: String(limit),
+      page,
+      limit,
       sortBy: 'createdAt',
       sortOrder: 'desc',
     });
@@ -300,10 +300,16 @@ export class AuditService {
    * Export audit logs
    */
   static async exportLogs(
-    query: AuditQueryInput,
+    query: ExportAuditInput,
     format: 'csv' | 'json' = 'json'
   ): Promise<{ data: any; filename: string }> {
-    const { logs } = await this.queryLogs({ ...query, limit: '10000' });
+    const { logs } = await this.queryLogs({
+      ...query,
+      page: 1,
+      limit: 10000,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    });
 
     const filename = `audit-logs-${new Date().toISOString().split('T')[0]}.${format}`;
 

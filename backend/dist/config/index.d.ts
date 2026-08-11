@@ -33,6 +33,8 @@ export declare const config: {
     };
     email: {
         from: string;
+        /** smtp | sendgrid — use smtp for Gmail / Mailtrap */
+        provider: string;
         sendgridApiKey: string;
         smtp: {
             host: string;
@@ -75,6 +77,22 @@ export declare const config: {
     openai: {
         apiKey: string;
         embeddingModel: string;
+    };
+    blockchain: {
+        enabled: boolean;
+        networkId: number;
+        privateKey: string;
+        rpcUrl: string;
+        polygonMainnetRpc: string;
+        polygonAmoyRpc: string;
+        deploymentsFile: string;
+        defaultProviderAddress: string;
+        contracts: {
+            medicalRecordAnchor: string;
+            patientConsent: string;
+            prescriptionVerifier: string;
+            medicalDataRegistry: string;
+        };
     };
     frontendUrl: string;
 };

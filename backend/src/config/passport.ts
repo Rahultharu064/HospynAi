@@ -147,19 +147,4 @@ passport.use(
   )
 );
 
-// Serialize user for session (if using sessions)
-passport.serializeUser((user: any, done) => {
-  done(null, user.id);
-});
-
-// Deserialize user from session
-passport.deserializeUser(async (id: string, done) => {
-  try {
-    const user = await prisma.user.findUnique({ where: { id } });
-    done(null, user);
-  } catch (error) {
-    done(error, null);
-  }
-});
-
 export default passport;

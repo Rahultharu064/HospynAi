@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LabReportService = void 0;
+const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../../../config/prisma"));
 const errors_1 = require("../../../utils/errors");
 const logger_1 = __importDefault(require("../../../utils/logger"));
@@ -26,7 +27,7 @@ class LabReportService {
                     testName: data.testName,
                     testCategory: data.testCategory || null,
                     results: data.results,
-                    normalRanges: data.normalRanges || null,
+                    normalRanges: data.normalRanges || client_1.Prisma.JsonNull,
                     interpretation: data.interpretation || null,
                     status: data.status || 'PENDING',
                     orderedAt: new Date(),

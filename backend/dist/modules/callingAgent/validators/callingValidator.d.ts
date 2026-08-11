@@ -10,14 +10,14 @@ export declare const initiateCallSchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         patientId: string;
         phoneNumber: string;
-        callType: "FOLLOW_UP" | "APPOINTMENT_CONFIRMATION" | "GENERAL" | "REMINDER";
+        callType: "FOLLOW_UP" | "GENERAL" | "APPOINTMENT_CONFIRMATION" | "REMINDER";
         message?: string | null | undefined;
         appointmentId?: string | null | undefined;
         callbackUrl?: string | null | undefined;
     }, {
         patientId: string;
         phoneNumber: string;
-        callType: "FOLLOW_UP" | "APPOINTMENT_CONFIRMATION" | "GENERAL" | "REMINDER";
+        callType: "FOLLOW_UP" | "GENERAL" | "APPOINTMENT_CONFIRMATION" | "REMINDER";
         message?: string | null | undefined;
         appointmentId?: string | null | undefined;
         callbackUrl?: string | null | undefined;
@@ -26,7 +26,7 @@ export declare const initiateCallSchema: z.ZodObject<{
     body: {
         patientId: string;
         phoneNumber: string;
-        callType: "FOLLOW_UP" | "APPOINTMENT_CONFIRMATION" | "GENERAL" | "REMINDER";
+        callType: "FOLLOW_UP" | "GENERAL" | "APPOINTMENT_CONFIRMATION" | "REMINDER";
         message?: string | null | undefined;
         appointmentId?: string | null | undefined;
         callbackUrl?: string | null | undefined;
@@ -35,7 +35,7 @@ export declare const initiateCallSchema: z.ZodObject<{
     body: {
         patientId: string;
         phoneNumber: string;
-        callType: "FOLLOW_UP" | "APPOINTMENT_CONFIRMATION" | "GENERAL" | "REMINDER";
+        callType: "FOLLOW_UP" | "GENERAL" | "APPOINTMENT_CONFIRMATION" | "REMINDER";
         message?: string | null | undefined;
         appointmentId?: string | null | undefined;
         callbackUrl?: string | null | undefined;
@@ -48,19 +48,19 @@ export declare const transferToHumanSchema: z.ZodObject<{
         priority: z.ZodDefault<z.ZodOptional<z.ZodEnum<["normal", "urgent"]>>>;
         department: z.ZodNullable<z.ZodOptional<z.ZodString>>;
     }, "strip", z.ZodTypeAny, {
-        priority: "normal" | "urgent";
+        priority: "urgent" | "normal";
         reason: string;
         callSid: string;
         department?: string | null | undefined;
     }, {
         reason: string;
         callSid: string;
-        priority?: "normal" | "urgent" | undefined;
+        priority?: "urgent" | "normal" | undefined;
         department?: string | null | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
     body: {
-        priority: "normal" | "urgent";
+        priority: "urgent" | "normal";
         reason: string;
         callSid: string;
         department?: string | null | undefined;
@@ -69,7 +69,7 @@ export declare const transferToHumanSchema: z.ZodObject<{
     body: {
         reason: string;
         callSid: string;
-        priority?: "normal" | "urgent" | undefined;
+        priority?: "urgent" | "normal" | undefined;
         department?: string | null | undefined;
     };
 }>;

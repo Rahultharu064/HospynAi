@@ -12,11 +12,12 @@ const prisma_1 = __importDefault(require("../../../config/prisma"));
 const errors_1 = require("../../../utils/errors");
 class TokenService {
     static generateAccessToken(payload) {
-        return jsonwebtoken_1.default.sign(payload, config_1.config.jwt.accessTokenSecret, {
+        const options = {
             expiresIn: config_1.config.jwt.accessTokenExpiry,
             issuer: config_1.config.jwt.issuer,
             audience: config_1.config.jwt.audience,
-        });
+        };
+        return jsonwebtoken_1.default.sign(payload, config_1.config.jwt.accessTokenSecret, options);
     }
     static generateRefreshToken() {
         return crypto_1.default.randomBytes(40).toString('hex');

@@ -203,14 +203,14 @@ export declare const sessionQuerySchema: z.ZodObject<{
         limit: number;
         sortBy: "createdAt" | "duration" | "startedAt";
         sortOrder: "asc" | "desc";
-        status?: "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "FAILED" | "WAITING" | "DISCONNECTED" | undefined;
+        status?: "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "FAILED" | "DISCONNECTED" | "WAITING" | undefined;
         dateFrom?: string | undefined;
         dateTo?: string | undefined;
         patientId?: string | undefined;
         doctorId?: string | undefined;
         appointmentId?: string | undefined;
     }, {
-        status?: "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "FAILED" | "WAITING" | "DISCONNECTED" | undefined;
+        status?: "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "FAILED" | "DISCONNECTED" | "WAITING" | undefined;
         page?: string | undefined;
         limit?: string | undefined;
         dateFrom?: string | undefined;
@@ -227,7 +227,7 @@ export declare const sessionQuerySchema: z.ZodObject<{
         limit: number;
         sortBy: "createdAt" | "duration" | "startedAt";
         sortOrder: "asc" | "desc";
-        status?: "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "FAILED" | "WAITING" | "DISCONNECTED" | undefined;
+        status?: "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "FAILED" | "DISCONNECTED" | "WAITING" | undefined;
         dateFrom?: string | undefined;
         dateTo?: string | undefined;
         patientId?: string | undefined;
@@ -236,7 +236,7 @@ export declare const sessionQuerySchema: z.ZodObject<{
     };
 }, {
     query: {
-        status?: "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "FAILED" | "WAITING" | "DISCONNECTED" | undefined;
+        status?: "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "FAILED" | "DISCONNECTED" | "WAITING" | undefined;
         page?: string | undefined;
         limit?: string | undefined;
         dateFrom?: string | undefined;

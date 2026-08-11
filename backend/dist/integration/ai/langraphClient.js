@@ -43,7 +43,7 @@ const AgentState = langgraph_1.Annotation.Root({
 /**
  * Schedule appointment tool
  */
-class ScheduleAppointmentTool extends tools_1.Tool {
+class ScheduleAppointmentTool extends tools_1.StructuredTool {
     constructor() {
         super(...arguments);
         this.name = "schedule_appointment";
@@ -126,7 +126,7 @@ class ScheduleAppointmentTool extends tools_1.Tool {
 /**
  * Search patient records tool
  */
-class SearchPatientRecordsTool extends tools_1.Tool {
+class SearchPatientRecordsTool extends tools_1.StructuredTool {
     constructor() {
         super(...arguments);
         this.name = "search_patient_records";
@@ -180,7 +180,7 @@ class SearchPatientRecordsTool extends tools_1.Tool {
 /**
  * Check drug interactions tool
  */
-class CheckDrugInteractionsTool extends tools_1.Tool {
+class CheckDrugInteractionsTool extends tools_1.StructuredTool {
     constructor() {
         super(...arguments);
         this.name = "check_drug_interactions";
@@ -235,7 +235,7 @@ class CheckDrugInteractionsTool extends tools_1.Tool {
 /**
  * Analyze symptoms tool
  */
-class AnalyzeSymptomsTool extends tools_1.Tool {
+class AnalyzeSymptomsTool extends tools_1.StructuredTool {
     constructor() {
         super(...arguments);
         this.name = "analyze_symptoms";
@@ -254,15 +254,19 @@ class AnalyzeSymptomsTool extends tools_1.Tool {
                 const patient = await prisma_1.default.patient.findUnique({
                     where: { id: input.patientId },
                     select: {
-                        age: true,
+                        dateOfBirth: true,
                         gender: true,
                         allergies: true,
                         chronicConditions: true,
                         currentMedications: true,
                     },
                 });
-                if (patient)
-                    patientContext = patient;
+                if (patient) {
+                    const age = patient.dateOfBirth
+                        ? Math.floor((Date.now() - patient.dateOfBirth.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+                        : null;
+                    patientContext = { ...patient, age };
+                }
             }
             // Emergency symptoms check
             const emergencySymptoms = [
@@ -314,7 +318,7 @@ class AnalyzeSymptomsTool extends tools_1.Tool {
 /**
  * Generate prescription tool
  */
-class GeneratePrescriptionTool extends tools_1.Tool {
+class GeneratePrescriptionTool extends tools_1.StructuredTool {
     constructor() {
         super(...arguments);
         this.name = "generate_prescription";
@@ -353,7 +357,7 @@ class GeneratePrescriptionTool extends tools_1.Tool {
 /**
  * Query knowledge base tool
  */
-class QueryKnowledgeBaseTool extends tools_1.Tool {
+class QueryKnowledgeBaseTool extends tools_1.StructuredTool {
     constructor() {
         super(...arguments);
         this.name = "query_knowledge_base";
@@ -587,7 +591,7 @@ class LangGraphAgent {
                 }
                 // Execute tool
                 logger_1.default.info(`[LangGraph] Executing tool: ${toolName} with params:`, params);
-                const result = await tool._call(params);
+                const result = await tool.invoke(params);
                 toolResults[toolName] = JSON.parse(result);
             }
             catch (error) {
@@ -721,7 +725,7 @@ class LangGraphAgent {
             return { success: false, message: `Tool not found: ${toolName}` };
         }
         try {
-            const result = await tool._call(parameters);
+            const result = await tool.invoke(parameters);
             return JSON.parse(result);
         }
         catch (error) {
