@@ -172,7 +172,7 @@ export async function sendRealTimeNotification(
   }
 ): Promise<void> {
   try {
-    const { io } = await import('../server');
+    const { io } = await import('../../server');
     if (io) {
       io.to(`user:${userId}`).emit('new-notification', {
         ...notification,
@@ -197,7 +197,7 @@ export async function sendBroadcastNotification(
   }
 ): Promise<void> {
   try {
-    const { io } = await import('../server');
+    const { io } = await import('../../server');
     if (io) {
       io.to(`role:${role}`).emit('broadcast-notification', {
         ...notification,

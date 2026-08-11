@@ -895,6 +895,7 @@ model AiMemory {
   content        String  @db.Text
   embeddingId    String? @map("embedding_id")
   relevanceScore Float?  @map("relevance_score")
+  metadata       Json?   @db.JsonB
 
   expiresAt DateTime? @map("expires_at")
   createdAt DateTime  @default(now()) @map("created_at")

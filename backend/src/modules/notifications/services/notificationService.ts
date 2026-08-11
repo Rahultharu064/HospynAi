@@ -115,11 +115,13 @@ export class NotificationService {
 
       switch (channel) {
         case NotificationChannel.EMAIL:
-          sent = await EmailService.sendMail(
+          await EmailService.sendMail(
             user.email,
             notification.title,
-            notification.message
+            notification.message,
+            { throwOnError: true }
           );
+          sent = true;
           break;
 
         case NotificationChannel.SMS:

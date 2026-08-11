@@ -18,7 +18,7 @@ class SmsServiceClass {
     async sendSms(to, body) {
         if (!this.client) {
             logger_1.default.warn('Twilio not configured. SMS not sent.');
-            return;
+            return false;
         }
         try {
             await this.client.messages.create({
@@ -27,9 +27,11 @@ class SmsServiceClass {
                 to,
             });
             logger_1.default.info(`SMS sent to ${to}`);
+            return true;
         }
         catch (error) {
             logger_1.default.error(`Failed to send SMS to ${to}:`, error);
+            return false;
         }
     }
     async sendOtpSms(phone, otp) {

@@ -103,6 +103,10 @@ export interface BlockchainStats {
     averageConfirmationTime: number;
     successRate: number;
     recentTransactions: RecentTransaction[];
+    blockchainEnabled?: boolean;
+    chainReady?: boolean;
+    networkName?: string;
+    networkId?: number;
 }
 export interface RecentTransaction {
     txHash: string;

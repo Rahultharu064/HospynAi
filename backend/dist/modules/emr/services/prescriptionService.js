@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PrescriptionService = void 0;
+const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../../../config/prisma"));
 const errors_1 = require("../../../utils/errors");
 const logger_1 = __importDefault(require("../../../utils/logger"));
@@ -48,7 +49,7 @@ class PrescriptionService {
                     endDate: data.endDate ? new Date(data.endDate) : null,
                     refillsAllowed: data.refillsAllowed || 0,
                     isControlled: data.isControlled || false,
-                    drugInteractions: drugInteractions.length > 0 ? drugInteractions : null,
+                    drugInteractions: drugInteractions.length > 0 ? drugInteractions : client_1.Prisma.JsonNull,
                     createdById: userId,
                 },
                 include: {

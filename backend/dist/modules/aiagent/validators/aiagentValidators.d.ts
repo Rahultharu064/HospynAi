@@ -9,13 +9,13 @@ export declare const agentChatSchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         message: string;
         stream: boolean;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         context?: Record<string, any> | null | undefined;
     }, {
         message: string;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         context?: Record<string, any> | null | undefined;
         stream?: boolean | undefined;
     }>;
@@ -23,15 +23,15 @@ export declare const agentChatSchema: z.ZodObject<{
     body: {
         message: string;
         stream: boolean;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         context?: Record<string, any> | null | undefined;
     };
 }, {
     body: {
         message: string;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         context?: Record<string, any> | null | undefined;
         stream?: boolean | undefined;
     };
@@ -44,7 +44,7 @@ export declare const agentTaskSchema: z.ZodObject<{
         priority: z.ZodDefault<z.ZodOptional<z.ZodEnum<["low", "normal", "high", "urgent"]>>>;
         callbackUrl: z.ZodNullable<z.ZodOptional<z.ZodString>>;
     }, "strip", z.ZodTypeAny, {
-        priority: "low" | "normal" | "high" | "urgent";
+        priority: "urgent" | "low" | "normal" | "high";
         taskType: "SUMMARIZE_RECORDS" | "SCHEDULE_APPOINTMENT" | "CREATE_PRESCRIPTION" | "ORDER_LAB_TEST" | "ANALYZE_SYMPTOMS" | "GENERATE_REFERRAL" | "CHECK_DRUG_INTERACTIONS" | "TRIAGE_PATIENT" | "GENERATE_REPORT" | "SEND_NOTIFICATION";
         parameters: Record<string, any>;
         patientId?: string | null | undefined;
@@ -52,13 +52,13 @@ export declare const agentTaskSchema: z.ZodObject<{
     }, {
         taskType: "SUMMARIZE_RECORDS" | "SCHEDULE_APPOINTMENT" | "CREATE_PRESCRIPTION" | "ORDER_LAB_TEST" | "ANALYZE_SYMPTOMS" | "GENERATE_REFERRAL" | "CHECK_DRUG_INTERACTIONS" | "TRIAGE_PATIENT" | "GENERATE_REPORT" | "SEND_NOTIFICATION";
         parameters: Record<string, any>;
-        priority?: "low" | "normal" | "high" | "urgent" | undefined;
+        priority?: "urgent" | "low" | "normal" | "high" | undefined;
         patientId?: string | null | undefined;
         callbackUrl?: string | null | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
     body: {
-        priority: "low" | "normal" | "high" | "urgent";
+        priority: "urgent" | "low" | "normal" | "high";
         taskType: "SUMMARIZE_RECORDS" | "SCHEDULE_APPOINTMENT" | "CREATE_PRESCRIPTION" | "ORDER_LAB_TEST" | "ANALYZE_SYMPTOMS" | "GENERATE_REFERRAL" | "CHECK_DRUG_INTERACTIONS" | "TRIAGE_PATIENT" | "GENERATE_REPORT" | "SEND_NOTIFICATION";
         parameters: Record<string, any>;
         patientId?: string | null | undefined;
@@ -68,7 +68,7 @@ export declare const agentTaskSchema: z.ZodObject<{
     body: {
         taskType: "SUMMARIZE_RECORDS" | "SCHEDULE_APPOINTMENT" | "CREATE_PRESCRIPTION" | "ORDER_LAB_TEST" | "ANALYZE_SYMPTOMS" | "GENERATE_REFERRAL" | "CHECK_DRUG_INTERACTIONS" | "TRIAGE_PATIENT" | "GENERATE_REPORT" | "SEND_NOTIFICATION";
         parameters: Record<string, any>;
-        priority?: "low" | "normal" | "high" | "urgent" | undefined;
+        priority?: "urgent" | "low" | "normal" | "high" | undefined;
         patientId?: string | null | undefined;
         callbackUrl?: string | null | undefined;
     };
@@ -219,9 +219,9 @@ export declare const ragQuerySchema: z.ZodObject<{
     }, {
         query: string;
         patientId?: string | null | undefined;
-        minRelevance?: number | undefined;
         sourceType?: "CUSTOM" | "FAQ" | "MEDICAL_GUIDE" | "POLICY" | "RESEARCH" | undefined;
         context?: Record<string, any> | null | undefined;
+        minRelevance?: number | undefined;
         maxResults?: number | undefined;
         includeCitations?: boolean | undefined;
     }>;
@@ -239,9 +239,9 @@ export declare const ragQuerySchema: z.ZodObject<{
     body: {
         query: string;
         patientId?: string | null | undefined;
-        minRelevance?: number | undefined;
         sourceType?: "CUSTOM" | "FAQ" | "MEDICAL_GUIDE" | "POLICY" | "RESEARCH" | undefined;
         context?: Record<string, any> | null | undefined;
+        minRelevance?: number | undefined;
         maxResults?: number | undefined;
         includeCitations?: boolean | undefined;
     };

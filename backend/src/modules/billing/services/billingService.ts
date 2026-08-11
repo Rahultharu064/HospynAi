@@ -40,7 +40,15 @@ export class BillingService {
     // Validate patient
     const patient = await prisma.patient.findUnique({
       where: { id: data.patientId },
-      select: { id: true, firstName: true, lastName: true, patientId: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        patientId: true,
+        email: true,
+        organizationId: true,
+        deletedAt: true,
+      },
     });
     if (!patient || patient.deletedAt) {
       throw new NotFoundError('Patient not found');

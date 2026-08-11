@@ -4,7 +4,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EMRService = void 0;
+const client_1 = require("@prisma/client");
 const prisma_1 = __importDefault(require("../../../config/prisma"));
+const blockchainService_1 = require("../../blockchain/services/blockchainService");
+const blockchainHash_1 = require("../../../utils/blockchainHash");
 const errors_1 = require("../../../utils/errors");
 const logger_1 = __importDefault(require("../../../utils/logger"));
 class EMRService {
@@ -47,8 +50,8 @@ class EMRService {
                     chiefComplaint: data.chiefComplaint || null,
                     diagnosis: data.diagnosis || null,
                     icd10Codes: data.icd10Codes || [],
-                    symptoms: data.symptoms || null,
-                    vitalSigns: data.vitalSigns || null,
+                    symptoms: data.symptoms || client_1.Prisma.JsonNull,
+                    vitalSigns: data.vitalSigns || client_1.Prisma.JsonNull,
                     examinationNotes: data.examinationNotes || null,
                     treatmentPlan: data.treatmentPlan || null,
                     doctorNotes: data.doctorNotes || null,
@@ -154,8 +157,8 @@ class EMRService {
                     ...(data.chiefComplaint !== undefined && { chiefComplaint: data.chiefComplaint }),
                     ...(data.diagnosis !== undefined && { diagnosis: data.diagnosis }),
                     ...(data.icd10Codes && { icd10Codes: data.icd10Codes }),
-                    ...(data.symptoms !== undefined && { symptoms: data.symptoms }),
-                    ...(data.vitalSigns !== undefined && { vitalSigns: data.vitalSigns }),
+                    ...(data.symptoms !== undefined && { symptoms: data.symptoms ?? client_1.Prisma.JsonNull }),
+                    ...(data.vitalSigns !== undefined && { vitalSigns: data.vitalSigns ?? client_1.Prisma.JsonNull }),
                     ...(data.examinationNotes !== undefined && { examinationNotes: data.examinationNotes }),
                     ...(data.treatmentPlan !== undefined && { treatmentPlan: data.treatmentPlan }),
                     ...(data.doctorNotes !== undefined && { doctorNotes: data.doctorNotes }),
@@ -203,8 +206,7 @@ class EMRService {
                 },
                 include: this.getEMRInclude(),
             });
-            // Create blockchain record (hash anchoring)
-            await this.createBlockchainRecord(tx, signed.id, signed.patientId);
+            const blockchainRecordId = await this.createBlockchainRecord(tx, signed.id, signed.patientId, signed.patient.patientId, signed.signedAt);
             await tx.auditLog.create({
                 data: {
                     userId,
@@ -215,10 +217,14 @@ class EMRService {
                     userAgent,
                 },
             });
-            return signed;
+            return { signed, blockchainRecordId };
         });
-        logger_1.default.info(`EMR signed: ${id}`);
-        return this.formatEMRResponse(emr);
+        if (emr.blockchainRecordId) {
+            blockchainService_1.BlockchainService.submitPendingAnchor(emr.blockchainRecordId).catch((error) => {
+                logger_1.default.error(`EMR on-chain anchor failed for record ${emr.blockchainRecordId}:`, error);
+            });
+        }
+        return this.formatEMRResponse(emr.signed);
     }
     /**
      * ============================================
@@ -337,12 +343,10 @@ class EMRService {
      * BLOCKCHAIN ANCHORING
      * ============================================
      */
-    static async createBlockchainRecord(tx, medicalRecordId, patientId) {
-        // Generate SHA-256 hash of the medical record
-        const crypto = require('crypto');
-        const recordData = JSON.stringify({ medicalRecordId, patientId, timestamp: new Date().toISOString() });
-        const dataHash = crypto.createHash('sha256').update(recordData).digest('hex');
-        await tx.blockchainRecord.create({
+    static async createBlockchainRecord(tx, medicalRecordId, patientId, patientPublicId, signedAt) {
+        const signedAtIso = signedAt.toISOString();
+        const dataHash = (0, blockchainHash_1.hashMedicalRecord)(medicalRecordId, patientId, signedAtIso);
+        const record = await tx.blockchainRecord.create({
             data: {
                 patientId,
                 medicalRecordId,
@@ -351,10 +355,12 @@ class EMRService {
                 status: 'PENDING',
                 metadata: {
                     recordId: medicalRecordId,
-                    timestamp: new Date().toISOString(),
+                    patientPublicId,
+                    signedAt: signedAtIso,
                 },
             },
         });
+        return record.id;
     }
     // ============================================
     // HELPER METHODS

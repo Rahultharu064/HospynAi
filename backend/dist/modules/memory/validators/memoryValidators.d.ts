@@ -19,8 +19,8 @@ export declare const saveMemorySchema: z.ZodObject<{
         metadata?: Record<string, any> | null | undefined;
         userId?: string | null | undefined;
         expiresAt?: string | null | undefined;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         source?: string | null | undefined;
     }, {
         content: string;
@@ -28,8 +28,8 @@ export declare const saveMemorySchema: z.ZodObject<{
         metadata?: Record<string, any> | null | undefined;
         userId?: string | null | undefined;
         expiresAt?: string | null | undefined;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         importance?: number | undefined;
         tags?: string[] | undefined;
         source?: string | null | undefined;
@@ -41,8 +41,8 @@ export declare const saveMemorySchema: z.ZodObject<{
         metadata?: Record<string, any> | null | undefined;
         userId?: string | null | undefined;
         expiresAt?: string | null | undefined;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         source?: string | null | undefined;
     }, {
         content: string;
@@ -50,8 +50,8 @@ export declare const saveMemorySchema: z.ZodObject<{
         metadata?: Record<string, any> | null | undefined;
         userId?: string | null | undefined;
         expiresAt?: string | null | undefined;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         importance?: number | undefined;
         tags?: string[] | undefined;
         source?: string | null | undefined;
@@ -65,8 +65,8 @@ export declare const saveMemorySchema: z.ZodObject<{
         metadata?: Record<string, any> | null | undefined;
         userId?: string | null | undefined;
         expiresAt?: string | null | undefined;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         source?: string | null | undefined;
     };
 }, {
@@ -76,8 +76,8 @@ export declare const saveMemorySchema: z.ZodObject<{
         metadata?: Record<string, any> | null | undefined;
         userId?: string | null | undefined;
         expiresAt?: string | null | undefined;
-        sessionId?: string | null | undefined;
         patientId?: string | null | undefined;
+        sessionId?: string | null | undefined;
         importance?: number | undefined;
         tags?: string[] | undefined;
         source?: string | null | undefined;

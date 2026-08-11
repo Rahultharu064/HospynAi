@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { CreatePrescriptionInput } from '../validators/emrValidator';
 import { PrescriptionResponse } from '../../../types/emrTypes';
 export declare class PrescriptionService {
@@ -29,8 +30,8 @@ export declare class PrescriptionService {
         duration: string;
         startDate: Date;
         endDate: Date | null;
-        medicalRecordId: string;
         drugName: string;
+        medicalRecordId: string;
         genericName: string | null;
         dosage: string;
         frequency: string;
@@ -39,7 +40,7 @@ export declare class PrescriptionService {
         refillsAllowed: number | null;
         isControlled: boolean;
         refillsUsed: number | null;
-        drugInteractions: import("@prisma/client/runtime/library").JsonValue | null;
+        drugInteractions: Prisma.JsonValue | null;
     })[]>;
     /**
      * Discontinue prescription

@@ -1,4 +1,4 @@
-import { AuditLogEntry, AuditQueryInput } from '../validators/auditValidator';
+import { AuditLogEntry, AuditQueryInput, ExportAuditInput } from '../validators/auditValidator';
 import { AuditListResponse, AuditStats } from '../../../types/auditTypes';
 export declare class AuditService {
     /**
@@ -32,7 +32,7 @@ export declare class AuditService {
     /**
      * Export audit logs
      */
-    static exportLogs(query: AuditQueryInput, format?: 'csv' | 'json'): Promise<{
+    static exportLogs(query: ExportAuditInput, format?: 'csv' | 'json'): Promise<{
         data: any;
         filename: string;
     }>;

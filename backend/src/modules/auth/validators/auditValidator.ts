@@ -235,7 +235,7 @@ export const anonymizeDataSchema = z.object({
 // TYPE EXPORTS
 // ============================================
 
-export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
+export type AuditLogEntry = z.input<typeof auditLogEntrySchema>;
 export type AuditQueryInput = z.infer<typeof auditQuerySchema>['query'];
 export type UserAuditTrailInput = z.infer<typeof userAuditTrailSchema>;
 export type ResourceAuditTrailInput = z.infer<typeof resourceAuditTrailSchema>;

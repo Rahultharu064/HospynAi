@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import { AuditService } from '../../auth/services/auditService';
 import { CreateLabReportInput } from '../validators/emrValidator';
@@ -29,7 +30,7 @@ export class LabReportService {
           testName: data.testName,
           testCategory: data.testCategory || null,
           results: data.results,
-          normalRanges: data.normalRanges || null,
+          normalRanges: data.normalRanges || Prisma.JsonNull,
           interpretation: data.interpretation || null,
           status: data.status || 'PENDING',
           orderedAt: new Date(),

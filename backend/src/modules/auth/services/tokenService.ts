@@ -8,11 +8,12 @@ import { UnauthorizedError } from '../../../utils/errors';
 
 export class TokenService {
   static generateAccessToken(payload: TokenPayload): string {
-    return jwt.sign(payload, config.jwt.accessTokenSecret, {
-      expiresIn: config.jwt.accessTokenExpiry,
+    const options: jwt.SignOptions = {
+      expiresIn: config.jwt.accessTokenExpiry as jwt.SignOptions['expiresIn'],
       issuer: config.jwt.issuer,
       audience: config.jwt.audience,
-    });
+    };
+    return jwt.sign(payload, config.jwt.accessTokenSecret, options);
   }
 
   static generateRefreshToken(): string {

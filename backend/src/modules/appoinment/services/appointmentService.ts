@@ -918,13 +918,15 @@ export class AppointmentService {
           lastName: true,
         },
       },
-      payment: {
+      payments: {
         select: {
           id: true,
           invoiceId: true,
           amount: true,
           status: true,
         },
+        take: 1,
+        orderBy: { createdAt: 'desc' as const },
       },
     };
   }
@@ -971,7 +973,7 @@ export class AppointmentService {
       cancelReason: appointment.cancelReason,
       isFollowUp: appointment.isFollowUp,
       followUpFor: null,
-      payment: appointment.payment,
+      payment: appointment.payments?.[0] || null,
       createdBy: appointment.createdBy,
       createdAt: appointment.createdAt.toISOString(),
       updatedAt: appointment.updatedAt.toISOString(),

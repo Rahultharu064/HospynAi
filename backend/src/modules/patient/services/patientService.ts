@@ -1,4 +1,4 @@
-import { Prisma, PatientStatus, Gender, BloodGroup } from '@prisma/client';
+import { Prisma, PatientStatus, Gender, BloodGroup, DocumentType } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import { FileService } from '../../auth/services/fileService';
 import { AuditService } from '../../auth/services/auditService';
@@ -582,7 +582,7 @@ export class PatientService {
    */
   static async uploadDocument(
     patientId: string,
-    documentType: string,
+    documentType: DocumentType,
     title: string,
     description: string | undefined,
     file: Express.Multer.File,

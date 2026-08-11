@@ -2,7 +2,9 @@ declare class EmailServiceClass {
     private transporter;
     private useSendGrid;
     constructor();
-    sendMail(to: string, subject: string, html: string): Promise<void>;
+    sendMail(to: string, subject: string, html: string, options?: {
+        throwOnError?: boolean;
+    }): Promise<void>;
     sendOtpEmail(to: string, otp: string, type: string): Promise<void>;
     sendWelcomeEmail(to: string, firstName: string): Promise<void>;
     sendPasswordChangeNotification(to: string, firstName: string): Promise<void>;

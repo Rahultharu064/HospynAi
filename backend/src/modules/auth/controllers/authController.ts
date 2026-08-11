@@ -20,6 +20,13 @@ export class AuthController {
     const dto: LoginInput = req.body;
     const result = await AuthService.login(dto, req.ip || '', req.headers['user-agent'] || '');
 
+    if (!result.tokens) {
+      return res.status(200).json({
+        success: true, status: 200, message: result.message,
+        data: { requiresVerification: true, userId: result.userId },
+      });
+    }
+
     res.cookie('refreshToken', result.tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

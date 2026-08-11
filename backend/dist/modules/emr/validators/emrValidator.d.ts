@@ -314,8 +314,8 @@ export declare const createPrescriptionSchema: z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         patientId: string;
         duration: string;
-        medicalRecordId: string;
         drugName: string;
+        medicalRecordId: string;
         dosage: string;
         frequency: string;
         refillsAllowed: number;
@@ -329,8 +329,8 @@ export declare const createPrescriptionSchema: z.ZodObject<{
     }, {
         patientId: string;
         duration: string;
-        medicalRecordId: string;
         drugName: string;
+        medicalRecordId: string;
         dosage: string;
         frequency: string;
         route?: string | null | undefined;
@@ -346,8 +346,8 @@ export declare const createPrescriptionSchema: z.ZodObject<{
     body: {
         patientId: string;
         duration: string;
-        medicalRecordId: string;
         drugName: string;
+        medicalRecordId: string;
         dosage: string;
         frequency: string;
         refillsAllowed: number;
@@ -363,8 +363,8 @@ export declare const createPrescriptionSchema: z.ZodObject<{
     body: {
         patientId: string;
         duration: string;
-        medicalRecordId: string;
         drugName: string;
+        medicalRecordId: string;
         dosage: string;
         frequency: string;
         route?: string | null | undefined;

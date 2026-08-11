@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../../../config/prisma';
 import { qdrantService } from '../../../integration/ai/quadrantClient';
+import { embeddingClient } from '../../../integration/ai/embeddingClient';
 import { gptClient } from '../../../integration/ai/aiClient';
 import { AuditService } from '../../auth/services/auditService';
 import {
@@ -68,8 +69,8 @@ export class MemoryService {
       },
     });
 
-    // In production: Generate embedding and store in Qdrant
-    const embedding = await this.generateEmbedding(data.content);
+    // Generate embedding and store in Qdrant
+    const embedding = await embeddingClient.embed(data.content);
     await qdrantService.saveMemory(embeddingId, embedding, {
       memoryId: memory.id,
       memoryType: data.memoryType,
@@ -102,8 +103,8 @@ export class MemoryService {
       if (data.dateTo) where.createdAt.lte = new Date(data.dateTo);
     }
 
-    // In production: Generate query embedding and search Qdrant
-    const queryEmbedding = await this.generateEmbedding(data.query);
+    // Generate query embedding and search Qdrant
+    const queryEmbedding = await embeddingClient.embed(data.query);
     const vectorResults = await qdrantService.searchMemories(queryEmbedding, data.limit, data.minRelevance);
 
     // For now, do text-based search in database

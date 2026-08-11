@@ -7,6 +7,9 @@ import logger from './utils/logger';
 // server.ts - Add chatbot WebSocket
 import { setupChatbotSocket } from './utils/socket/chatbotSocket';
 import { setupTelemedicineSocket } from './utils/socket/telemedicineSocket';
+import { setupNotificationSocket } from './utils/socket/notificationSocket';
+
+export let io: SocketIOServer | undefined;
 
 const startServer = async () => {
   try {
@@ -14,7 +17,7 @@ const startServer = async () => {
     logger.info('📦 Database connected');
 
     const server = http.createServer(app);
-    const io = new SocketIOServer(server);
+    io = new SocketIOServer(server);
 
     server.listen(config.port, () => {
       logger.info(`🚀 Server running on port ${config.port} [${config.nodeEnv}]`);
@@ -22,6 +25,7 @@ const startServer = async () => {
 
     setupChatbotSocket(io);
     setupTelemedicineSocket(io);
+    setupNotificationSocket(io);
     const gracefulShutdown = async (signal: string) => {
       logger.info(`${signal} received. Shutting down...`);
       server.close(async () => {

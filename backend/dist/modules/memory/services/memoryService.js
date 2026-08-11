@@ -7,6 +7,7 @@ exports.MemoryService = void 0;
 const uuid_1 = require("uuid");
 const prisma_1 = __importDefault(require("../../../config/prisma"));
 const quadrantClient_1 = require("../../../integration/ai/quadrantClient");
+const embeddingClient_1 = require("../../../integration/ai/embeddingClient");
 const aiClient_1 = require("../../../integration/ai/aiClient");
 const errors_1 = require("../../../utils/errors");
 const logger_1 = __importDefault(require("../../../utils/logger"));
@@ -48,8 +49,8 @@ class MemoryService {
                 },
             },
         });
-        // In production: Generate embedding and store in Qdrant
-        const embedding = await this.generateEmbedding(data.content);
+        // Generate embedding and store in Qdrant
+        const embedding = await embeddingClient_1.embeddingClient.embed(data.content);
         await quadrantClient_1.qdrantService.saveMemory(embeddingId, embedding, {
             memoryId: memory.id,
             memoryType: data.memoryType,
@@ -83,8 +84,8 @@ class MemoryService {
             if (data.dateTo)
                 where.createdAt.lte = new Date(data.dateTo);
         }
-        // In production: Generate query embedding and search Qdrant
-        const queryEmbedding = await this.generateEmbedding(data.query);
+        // Generate query embedding and search Qdrant
+        const queryEmbedding = await embeddingClient_1.embeddingClient.embed(data.query);
         const vectorResults = await quadrantClient_1.qdrantService.searchMemories(queryEmbedding, data.limit, data.minRelevance);
         // For now, do text-based search in database
         const memories = await prisma_1.default.aiMemory.findMany({

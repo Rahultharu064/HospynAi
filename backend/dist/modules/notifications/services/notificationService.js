@@ -88,7 +88,8 @@ class NotificationService {
             let sent = false;
             switch (channel) {
                 case client_1.NotificationChannel.EMAIL:
-                    sent = await emailService_1.EmailService.sendMail(user.email, notification.title, notification.message);
+                    await emailService_1.EmailService.sendMail(user.email, notification.title, notification.message, { throwOnError: true });
+                    sent = true;
                     break;
                 case client_1.NotificationChannel.SMS:
                     if (user.phone) {
