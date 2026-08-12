@@ -66,4 +66,52 @@
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
+
+  /* Scroll-reveal: paired with [appScrollReveal]. Starts hidden, animates in once observed. */
+  [appScrollReveal] {
+    opacity: 0;
+    transform: translateY(28px);
+    transition-property: opacity, transform;
+    transition-duration: 700ms;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  [appScrollReveal].is-revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [appScrollReveal] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+
+  /* ── Marketing / console theme (dark, used only on the public landing page) ── */
+
+  .btn-console-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-teal-400 px-5 py-2.5 text-sm font-semibold text-navy-950 shadow-glow-teal transition-all duration-fast ease-default hover:bg-teal-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300;
+  }
+
+  .btn-console-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-navy-700 bg-navy-900/60 px-5 py-2.5 text-sm font-semibold text-gray-100 backdrop-blur transition-all duration-fast ease-default hover:border-teal-400/60 hover:text-teal-300;
+  }
+
+  .mkt-eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full border border-navy-700 bg-navy-900/60 px-3 py-1 font-mono text-2xs uppercase tracking-widest text-teal-300;
+  }
+
+  .mkt-tag {
+    @apply inline-flex items-center rounded border border-navy-700 bg-navy-900 px-2 py-0.5 font-mono text-2xs uppercase tracking-widest text-gray-400;
+  }
+
+  .mkt-panel {
+    @apply rounded-xl border border-navy-800 bg-navy-900/70 shadow-console backdrop-blur;
+  }
+
+  .mkt-section-label {
+    @apply font-mono text-2xs uppercase tracking-[0.2em] text-teal-300;
+  }
 }

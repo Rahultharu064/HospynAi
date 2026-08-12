@@ -3,7 +3,12 @@ import { authGuard, guestGuard } from './core/guards/auth.guard';
 import { roleGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+  {
+    path: '',
+    pathMatch: 'full',
+    loadComponent: () => import('./features/marketing/pages/landing/landing.component').then((m) => m.LandingComponent),
+    title: 'VoiceMed Pro — The AI Operating System for Modern Healthcare',
+  },
   {
     path: 'auth',
     canActivate: [guestGuard],

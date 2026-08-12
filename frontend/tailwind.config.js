@@ -106,6 +106,18 @@ module.exports = {
         toast: '600',
         tooltip: '700',
       },
+      boxShadow: {
+        'glow-teal': '0 0 0 1px rgba(45, 212, 191, 0.25), 0 0 40px -8px rgba(20, 184, 166, 0.45)',
+        'glow-indigo': '0 0 0 1px rgba(129, 140, 248, 0.25), 0 0 40px -8px rgba(99, 102, 241, 0.45)',
+        console: '0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 24px 60px -20px rgba(2, 6, 20, 0.65)',
+      },
+      backgroundImage: {
+        'console-grid':
+          'linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px)',
+      },
+      backgroundSize: {
+        'console-grid': '40px 40px',
+      },
     },
   },
   plugins: [],
