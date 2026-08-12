@@ -12,10 +12,9 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { BadgeComponent } from '../../../../shared/components/badge/badge.component';
 
 @Component({
-  selector: 'app-user-management',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, RouterLinkActive, PageHeaderComponent, SpinnerComponent, BadgeComponent],
-  template: `
+    selector: 'app-user-management',
+    imports: [CommonModule, ReactiveFormsModule, RouterLink, RouterLinkActive, PageHeaderComponent, SpinnerComponent, BadgeComponent],
+    template: `
     <app-page-header title="Administration" subtitle="Manage staff accounts, organizations, and system health.">
       <button type="button" class="btn-primary" (click)="showForm.set(!showForm())">
         {{ showForm() ? 'Cancel' : '+ Invite staff member' }}
@@ -107,7 +106,7 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
         </div>
       }
     </div>
-  `,
+  `
 })
 export class UserManagementComponent implements OnInit {
   private fb = inject(FormBuilder);

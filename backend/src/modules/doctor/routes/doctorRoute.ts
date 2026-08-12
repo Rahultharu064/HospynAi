@@ -44,6 +44,8 @@ router.get(
   authorize(
     UserRole.SUPER_ADMIN,
     UserRole.ADMIN,
+    UserRole.DOCTOR,
+    UserRole.NURSE,
     UserRole.RECEPTIONIST,
     UserRole.PATIENT
   ),
@@ -57,6 +59,8 @@ router.get(
   authorize(
     UserRole.SUPER_ADMIN,
     UserRole.ADMIN,
+    UserRole.DOCTOR,
+    UserRole.NURSE,
     UserRole.RECEPTIONIST,
     UserRole.PATIENT
   ),

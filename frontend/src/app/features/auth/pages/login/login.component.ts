@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/services/auth.service';
@@ -8,10 +8,9 @@ import { firstErrorMessage } from '../../../../shared/utils/form-errors.util';
 import { environment } from '../../../../../environments/environment';
 
 @Component({
-  selector: 'app-login',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
-  template: `
+    selector: 'app-login',
+    imports: [ReactiveFormsModule, RouterLink],
+    template: `
     <h1 class="mb-1 font-display text-xl font-semibold text-gray-900">Welcome back</h1>
     <p class="mb-6 text-sm text-gray-500">Sign in to your VoiceMed Pro workspace.</p>
 
@@ -59,7 +58,7 @@ import { environment } from '../../../../../environments/environment';
       Don't have an account?
       <a routerLink="/auth/register" class="font-medium text-navy-500 hover:text-navy-600">Create one</a>
     </p>
-  `,
+  `
 })
 export class LoginComponent {
   private fb = inject(FormBuilder);

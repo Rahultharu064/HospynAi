@@ -2,10 +2,9 @@ import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
 @Component({
-  selector: 'app-auth-layout',
-  standalone: true,
-  imports: [RouterOutlet],
-  template: `
+    selector: 'app-auth-layout',
+    imports: [RouterOutlet],
+    template: `
     <div class="flex min-h-screen items-center justify-center bg-navy-950 px-4 py-12">
       <div class="w-full max-w-md">
         <div class="mb-8 flex items-center justify-center gap-2">
@@ -19,6 +18,6 @@ import { RouterOutlet } from '@angular/router';
         </div>
       </div>
     </div>
-  `,
+  `
 })
 export class AuthLayoutComponent {}

@@ -4,10 +4,9 @@ import { AuthService } from '../../core/services/auth.service';
 import { NavService } from '../../core/services/nav.service';
 
 @Component({
-  selector: 'app-sidebar',
-  standalone: true,
-  imports: [RouterLink, RouterLinkActive],
-  template: `
+    selector: 'app-sidebar',
+    imports: [RouterLink, RouterLinkActive],
+    template: `
     <aside class="flex h-full w-64 flex-col border-r border-gray-200 bg-white">
       <div class="flex h-16 items-center gap-2 border-b border-gray-200 px-5">
         <div class="flex h-8 w-8 items-center justify-center rounded-md bg-navy-500 text-sm font-bold text-white">
@@ -42,7 +41,7 @@ import { NavService } from '../../core/services/nav.service';
         </div>
       </div>
     </aside>
-  `,
+  `
 })
 export class SidebarComponent {
   private authService = inject(AuthService);

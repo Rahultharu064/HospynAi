@@ -1,12 +1,11 @@
 import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
-  selector: 'app-toast-container',
-  standalone: true,
-  imports: [CommonModule],
-  template: `
+    selector: 'app-toast-container',
+    imports: [],
+    template: `
     <div class="pointer-events-none fixed inset-x-0 top-4 z-toast flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6">
       @for (t of toastService.toasts(); track t.id) {
         <div
@@ -28,7 +27,7 @@ import { ToastService } from '../../../core/services/toast.service';
         </div>
       }
     </div>
-  `,
+  `
 })
 export class ToastContainerComponent {
   toastService = inject(ToastService);

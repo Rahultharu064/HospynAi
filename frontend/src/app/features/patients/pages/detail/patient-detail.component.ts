@@ -11,10 +11,9 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
-  selector: 'app-patient-detail',
-  standalone: true,
-  imports: [CommonModule, RouterLink, PageHeaderComponent, SpinnerComponent, BadgeComponent, EmptyStateComponent],
-  template: `
+    selector: 'app-patient-detail',
+    imports: [CommonModule, RouterLink, PageHeaderComponent, SpinnerComponent, BadgeComponent, EmptyStateComponent],
+    template: `
     @if (loading()) {
       <app-spinner />
     } @else {
@@ -145,7 +144,7 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
       </app-empty-state>
     }
     }
-  `,
+  `
 })
 export class PatientDetailComponent implements OnInit {
   private patientService = inject(PatientService);

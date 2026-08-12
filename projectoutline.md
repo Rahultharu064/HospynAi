@@ -609,7 +609,7 @@ VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Ope
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 PRESENTATION LAYER                          │
-│      Angular 18 (Standalone + Signals) + Tailwind CSS        │
+│      Angular 21 (Standalone + Signals) + Tailwind CSS        │
 └─────────────────────────┬───────────────────────────────────┘
                           │ HTTPS / REST
 ┌─────────────────────────▼───────────────────────────────────┐
@@ -641,7 +641,7 @@ VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Ope
 
 | Category | Technology | Purpose |
 |---|---|---|
-| Frontend | Angular 18 (standalone components + signals), Tailwind CSS, RxJS, Angular HttpClient | UI, state management, API calls |
+| Frontend | Angular 21 (standalone components + signals), Tailwind CSS, RxJS, Angular HttpClient | UI, state management, API calls |
 | Backend | Node.js 20, Express 4, TypeScript 5 | REST API and business logic |
 | Database | PostgreSQL 16, Prisma ORM | Relational data persistence |
 | AI / LLM | OpenAI GPT-4o, Whisper v3 | Language understanding and generation |

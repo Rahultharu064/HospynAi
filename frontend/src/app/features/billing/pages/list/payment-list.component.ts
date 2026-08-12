@@ -12,18 +12,17 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 
 @Component({
-  selector: 'app-payment-list',
-  standalone: true,
-  imports: [
-    CommonModule,
-    RouterLink,
-    PageHeaderComponent,
-    SpinnerComponent,
-    EmptyStateComponent,
-    BadgeComponent,
-    PaginationComponent,
-  ],
-  template: `
+    selector: 'app-payment-list',
+    imports: [
+        CommonModule,
+        RouterLink,
+        PageHeaderComponent,
+        SpinnerComponent,
+        EmptyStateComponent,
+        BadgeComponent,
+        PaginationComponent,
+    ],
+    template: `
     <app-page-header title="Billing" subtitle="Invoices, payments, and revenue.">
       @if (canCreate()) {
         <a routerLink="/billing/new" class="btn-primary">+ New invoice</a>
@@ -73,7 +72,7 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
         <app-pagination [data]="pagination()" (pageChange)="onPageChange($event)" />
       }
     </div>
-  `,
+  `
 })
 export class PaymentListComponent implements OnInit {
   private billingService = inject(BillingService);

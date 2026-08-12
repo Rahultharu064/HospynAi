@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/services/auth.service';
@@ -8,10 +8,9 @@ import { firstErrorMessage } from '../../../../shared/utils/form-errors.util';
 import { passwordMatchValidator, passwordStrengthValidator } from '../../../../shared/utils/validators.util';
 
 @Component({
-  selector: 'app-register',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
-  template: `
+    selector: 'app-register',
+    imports: [ReactiveFormsModule, RouterLink],
+    template: `
     <h1 class="mb-1 font-display text-xl font-semibold text-gray-900">Create your account</h1>
     <p class="mb-6 text-sm text-gray-500">Get started with VoiceMed Pro in a few seconds.</p>
 
@@ -76,7 +75,7 @@ import { passwordMatchValidator, passwordStrengthValidator } from '../../../../s
       Already have an account?
       <a routerLink="/auth/login" class="font-medium text-navy-500 hover:text-navy-600">Sign in</a>
     </p>
-  `,
+  `
 })
 export class RegisterComponent {
   private fb = inject(FormBuilder);

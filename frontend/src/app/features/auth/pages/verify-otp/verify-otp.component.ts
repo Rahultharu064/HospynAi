@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/services/auth.service';
@@ -8,10 +8,9 @@ import { OtpType } from '../../../../core/models/auth.model';
 import { firstErrorMessage } from '../../../../shared/utils/form-errors.util';
 
 @Component({
-  selector: 'app-verify-otp',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
-  template: `
+    selector: 'app-verify-otp',
+    imports: [ReactiveFormsModule, RouterLink],
+    template: `
     <h1 class="mb-1 font-display text-xl font-semibold text-gray-900">Verify your account</h1>
     <p class="mb-6 text-sm text-gray-500">
       Enter the 6-digit code we sent to <span class="font-medium text-gray-700">{{ email }}</span>.
@@ -49,7 +48,7 @@ import { firstErrorMessage } from '../../../../shared/utils/form-errors.util';
     <p class="mt-6 text-center text-sm text-gray-500">
       <a routerLink="/auth/login" class="font-medium text-navy-500 hover:text-navy-600">Back to sign in</a>
     </p>
-  `,
+  `
 })
 export class VerifyOtpComponent {
   private fb = inject(FormBuilder);

@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AdminService } from '../../services/admin.service';
 import { OrganizationResponse } from '../../models/admin.model';
@@ -9,10 +9,9 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
 import { BadgeComponent } from '../../../../shared/components/badge/badge.component';
 
 @Component({
-  selector: 'app-organization-list',
-  standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive, PageHeaderComponent, SpinnerComponent, EmptyStateComponent, BadgeComponent],
-  template: `
+    selector: 'app-organization-list',
+    imports: [RouterLink, RouterLinkActive, PageHeaderComponent, SpinnerComponent, EmptyStateComponent, BadgeComponent],
+    template: `
     <app-page-header title="Administration" subtitle="Manage staff accounts, organizations, and system health." />
 
     <nav class="mb-6 flex gap-1 border-b border-gray-200">
@@ -44,7 +43,7 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
         }
       </div>
     }
-  `,
+  `
 })
 export class OrganizationListComponent implements OnInit {
   private adminService = inject(AdminService);

@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { BillingService } from '../../services/billing.service';
@@ -11,10 +11,9 @@ import { firstErrorMessage } from '../../../../shared/utils/form-errors.util';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 
 @Component({
-  selector: 'app-payment-form',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, PageHeaderComponent],
-  template: `
+    selector: 'app-payment-form',
+    imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent],
+    template: `
     <app-page-header title="New invoice" />
 
     <form [formGroup]="form" (ngSubmit)="submit()" class="card max-w-xl space-y-5 p-6">
@@ -85,7 +84,7 @@ import { PageHeaderComponent } from '../../../../shared/components/page-header/p
         </button>
       </div>
     </form>
-  `,
+  `
 })
 export class PaymentFormComponent {
   private fb = inject(FormBuilder);

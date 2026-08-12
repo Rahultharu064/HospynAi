@@ -9,10 +9,9 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { StatCardComponent } from '../../../../shared/components/card/stat-card.component';
 
 @Component({
-  selector: 'app-dashboard-overview',
-  standalone: true,
-  imports: [CommonModule, RouterLink, SpinnerComponent, StatCardComponent],
-  template: `
+    selector: 'app-dashboard-overview',
+    imports: [CommonModule, RouterLink, SpinnerComponent, StatCardComponent],
+    template: `
     <div class="mb-6">
       <h1 class="font-display text-display-sm font-semibold text-gray-900">
         {{ greeting() }}, {{ firstName() }} 👋
@@ -49,7 +48,7 @@ import { StatCardComponent } from '../../../../shared/components/card/stat-card.
         </a>
       }
     </div>
-  `,
+  `
 })
 export class DashboardOverviewComponent implements OnInit {
   private authService = inject(AuthService);

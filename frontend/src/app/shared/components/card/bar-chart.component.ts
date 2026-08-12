@@ -1,5 +1,5 @@
 import { Component, Input, computed, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 
 export interface BarDatum {
   label: string;
@@ -7,10 +7,9 @@ export interface BarDatum {
 }
 
 @Component({
-  selector: 'app-bar-chart',
-  standalone: true,
-  imports: [CommonModule],
-  template: `
+    selector: 'app-bar-chart',
+    imports: [],
+    template: `
     <div class="space-y-2">
       @for (d of items(); track d.label) {
         <div class="flex items-center gap-3 text-sm">
@@ -22,7 +21,7 @@ export interface BarDatum {
         </div>
       }
     </div>
-  `,
+  `
 })
 export class BarChartComponent {
   private readonly _data = signal<BarDatum[]>([]);

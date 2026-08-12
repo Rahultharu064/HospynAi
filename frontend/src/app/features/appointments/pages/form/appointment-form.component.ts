@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AppointmentService } from '../../services/appointment.service';
@@ -14,10 +14,9 @@ import { PageHeaderComponent } from '../../../../shared/components/page-header/p
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
 @Component({
-  selector: 'app-appointment-form',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, PageHeaderComponent, SpinnerComponent],
-  template: `
+    selector: 'app-appointment-form',
+    imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent, SpinnerComponent],
+    template: `
     <app-page-header title="Book appointment" subtitle="Find an available slot and confirm the visit details." />
 
     <form [formGroup]="form" (ngSubmit)="submit()" class="card max-w-2xl space-y-5 p-6">
@@ -122,7 +121,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
         </button>
       </div>
     </form>
-  `,
+  `
 })
 export class AppointmentFormComponent implements OnInit {
   private fb = inject(FormBuilder);

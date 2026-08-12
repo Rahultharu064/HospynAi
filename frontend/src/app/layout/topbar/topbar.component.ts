@@ -4,10 +4,9 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
 
 @Component({
-  selector: 'app-topbar',
-  standalone: true,
-  imports: [RouterLink],
-  template: `
+    selector: 'app-topbar',
+    imports: [RouterLink],
+    template: `
     <header class="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
       <div></div>
 
@@ -41,7 +40,7 @@ import { ToastService } from '../../core/services/toast.service';
         }
       </div>
     </header>
-  `,
+  `
 })
 export class TopbarComponent {
   private authService = inject(AuthService);

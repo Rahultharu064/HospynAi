@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ToastService } from '../../../../core/services/toast.service';
@@ -10,10 +10,9 @@ import { PageHeaderComponent } from '../../../../shared/components/page-header/p
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
 @Component({
-  selector: 'app-profile',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, PageHeaderComponent, SpinnerComponent],
-  template: `
+    selector: 'app-profile',
+    imports: [ReactiveFormsModule, PageHeaderComponent, SpinnerComponent],
+    template: `
     <app-page-header title="My profile" subtitle="Update your personal details and password." />
 
     @if (loading()) {
@@ -87,7 +86,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
         </form>
       </div>
     }
-  `,
+  `
 })
 export class ProfileComponent implements OnInit {
   private fb = inject(FormBuilder);

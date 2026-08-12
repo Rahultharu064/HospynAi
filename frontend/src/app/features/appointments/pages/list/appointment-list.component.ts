@@ -13,18 +13,17 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 
 @Component({
-  selector: 'app-appointment-list',
-  standalone: true,
-  imports: [
-    CommonModule,
-    RouterLink,
-    PageHeaderComponent,
-    SpinnerComponent,
-    EmptyStateComponent,
-    BadgeComponent,
-    PaginationComponent,
-  ],
-  template: `
+    selector: 'app-appointment-list',
+    imports: [
+        CommonModule,
+        RouterLink,
+        PageHeaderComponent,
+        SpinnerComponent,
+        EmptyStateComponent,
+        BadgeComponent,
+        PaginationComponent,
+    ],
+    template: `
     <app-page-header title="Appointments" subtitle="Manage bookings, reschedules, and cancellations.">
       <a routerLink="/appointments/queue" class="btn-secondary">Live queue</a>
       @if (canBook()) {
@@ -97,7 +96,7 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
         <app-pagination [data]="pagination()" (pageChange)="onPageChange($event)" />
       }
     </div>
-  `,
+  `
 })
 export class AppointmentListComponent implements OnInit {
   private appointmentService = inject(AppointmentService);

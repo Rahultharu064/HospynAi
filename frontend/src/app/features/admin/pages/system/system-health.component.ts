@@ -8,10 +8,9 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { BadgeComponent } from '../../../../shared/components/badge/badge.component';
 
 @Component({
-  selector: 'app-system-health',
-  standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive, PageHeaderComponent, SpinnerComponent, BadgeComponent],
-  template: `
+    selector: 'app-system-health',
+    imports: [CommonModule, RouterLink, RouterLinkActive, PageHeaderComponent, SpinnerComponent, BadgeComponent],
+    template: `
     <app-page-header title="Administration" subtitle="Manage staff accounts, organizations, and system health." />
 
     <nav class="mb-6 flex gap-1 border-b border-gray-200">
@@ -56,7 +55,7 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
         }
       </div>
     }
-  `,
+  `
 })
 export class SystemHealthComponent implements OnInit {
   private adminService = inject(AdminService);

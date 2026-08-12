@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { BillingService } from '../../services/billing.service';
 import { PAYMENT_METHODS, PaymentMethod, PaymentResponse } from '../../models/billing.model';
 import { AuthService } from '../../../../core/services/auth.service';
@@ -11,10 +11,9 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { BadgeComponent } from '../../../../shared/components/badge/badge.component';
 
 @Component({
-  selector: 'app-payment-detail',
-  standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, PageHeaderComponent, SpinnerComponent, BadgeComponent],
-  template: `
+    selector: 'app-payment-detail',
+    imports: [CommonModule, FormsModule, PageHeaderComponent, SpinnerComponent, BadgeComponent],
+    template: `
     @if (loading()) {
       <app-spinner />
     } @else {
@@ -91,7 +90,7 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
       </div>
     }
     }
-  `,
+  `
 })
 export class PaymentDetailComponent implements OnInit {
   private billingService = inject(BillingService);

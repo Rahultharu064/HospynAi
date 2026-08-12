@@ -4,10 +4,9 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
 import { TopbarComponent } from '../topbar/topbar.component';
 
 @Component({
-  selector: 'app-shell',
-  standalone: true,
-  imports: [RouterOutlet, SidebarComponent, TopbarComponent],
-  template: `
+    selector: 'app-shell',
+    imports: [RouterOutlet, SidebarComponent, TopbarComponent],
+    template: `
     <div class="flex h-screen overflow-hidden bg-gray-50">
       <app-sidebar />
       <div class="flex flex-1 flex-col overflow-hidden">
@@ -17,6 +16,6 @@ import { TopbarComponent } from '../topbar/topbar.component';
         </main>
       </div>
     </div>
-  `,
+  `
 })
 export class ShellComponent {}

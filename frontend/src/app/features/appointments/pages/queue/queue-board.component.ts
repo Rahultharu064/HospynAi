@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { Subscription, interval, startWith, switchMap } from 'rxjs';
 import { AppointmentService } from '../../services/appointment.service';
 import { AppointmentResponse } from '../../models/appointment.model';
@@ -10,10 +10,9 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
 import { BadgeComponent } from '../../../../shared/components/badge/badge.component';
 
 @Component({
-  selector: 'app-queue-board',
-  standalone: true,
-  imports: [CommonModule, PageHeaderComponent, SpinnerComponent, EmptyStateComponent, BadgeComponent],
-  template: `
+    selector: 'app-queue-board',
+    imports: [PageHeaderComponent, SpinnerComponent, EmptyStateComponent, BadgeComponent],
+    template: `
     <app-page-header title="Live queue" subtitle="Auto-refreshes every 15 seconds." />
 
     @if (loading()) {
@@ -44,7 +43,7 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
         }
       </div>
     }
-  `,
+  `
 })
 export class QueueBoardComponent implements OnInit, OnDestroy {
   private appointmentService = inject(AppointmentService);

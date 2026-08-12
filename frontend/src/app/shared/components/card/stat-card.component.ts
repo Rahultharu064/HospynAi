@@ -1,11 +1,10 @@
 import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 
 @Component({
-  selector: 'app-stat-card',
-  standalone: true,
-  imports: [CommonModule],
-  template: `
+    selector: 'app-stat-card',
+    imports: [],
+    template: `
     <div class="card p-5">
       <p class="text-sm text-gray-500">{{ label }}</p>
       <p class="mt-1 font-display text-display-sm font-semibold text-gray-900">{{ value }}</p>
@@ -15,7 +14,7 @@ import { CommonModule } from '@angular/common';
         </p>
       }
     </div>
-  `,
+  `
 })
 export class StatCardComponent {
   @Input() label = '';

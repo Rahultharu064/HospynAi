@@ -10,10 +10,9 @@ import { PageHeaderComponent } from '../../../../shared/components/page-header/p
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
 @Component({
-  selector: 'app-patient-form',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, PageHeaderComponent, SpinnerComponent],
-  template: `
+    selector: 'app-patient-form',
+    imports: [CommonModule, ReactiveFormsModule, RouterLink, PageHeaderComponent, SpinnerComponent],
+    template: `
     <app-page-header [title]="isEdit() ? 'Edit patient' : 'Register patient'" />
 
     @if (loadingPatient()) {
@@ -151,7 +150,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
         </div>
       </form>
     }
-  `,
+  `
 })
 export class PatientFormComponent implements OnInit {
   private fb = inject(FormBuilder);

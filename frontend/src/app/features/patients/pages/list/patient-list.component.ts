@@ -14,18 +14,17 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 
 @Component({
-  selector: 'app-patient-list',
-  standalone: true,
-  imports: [
-    CommonModule,
-    RouterLink,
-    PageHeaderComponent,
-    SpinnerComponent,
-    EmptyStateComponent,
-    BadgeComponent,
-    PaginationComponent,
-  ],
-  template: `
+    selector: 'app-patient-list',
+    imports: [
+        CommonModule,
+        RouterLink,
+        PageHeaderComponent,
+        SpinnerComponent,
+        EmptyStateComponent,
+        BadgeComponent,
+        PaginationComponent,
+    ],
+    template: `
     <app-page-header title="Patients" subtitle="Search, register, and manage patient records.">
       @if (canManage()) {
         <a routerLink="/patients/new" class="btn-primary">+ New patient</a>
@@ -102,7 +101,7 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
         <app-pagination [data]="pagination()" (pageChange)="onPageChange($event)" />
       }
     </div>
-  `,
+  `
 })
 export class PatientListComponent implements OnInit, OnDestroy {
   private patientService = inject(PatientService);

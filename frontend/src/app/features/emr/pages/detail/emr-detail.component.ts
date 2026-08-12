@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { EmrService } from '../../services/emr.service';
 import { EMRResponse } from '../../models/emr.model';
 import { AuthService } from '../../../../core/services/auth.service';
@@ -11,10 +11,9 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { BadgeComponent } from '../../../../shared/components/badge/badge.component';
 
 @Component({
-  selector: 'app-emr-detail',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, PageHeaderComponent, SpinnerComponent, BadgeComponent],
-  template: `
+    selector: 'app-emr-detail',
+    imports: [ReactiveFormsModule, PageHeaderComponent, SpinnerComponent, BadgeComponent],
+    template: `
     @if (loading()) {
       <app-spinner />
     } @else {
@@ -163,7 +162,7 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
       </div>
     }
     }
-  `,
+  `
 })
 export class EmrDetailComponent implements OnInit {
   private fb = inject(FormBuilder);

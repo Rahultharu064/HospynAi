@@ -11,10 +11,9 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
 import { BadgeComponent } from '../../../../shared/components/badge/badge.component';
 
 @Component({
-  selector: 'app-emr-lookup',
-  standalone: true,
-  imports: [CommonModule, RouterLink, PageHeaderComponent, SpinnerComponent, EmptyStateComponent, BadgeComponent],
-  template: `
+    selector: 'app-emr-lookup',
+    imports: [CommonModule, RouterLink, PageHeaderComponent, SpinnerComponent, EmptyStateComponent, BadgeComponent],
+    template: `
     <app-page-header title="Medical Records" subtitle="Search for a patient to view their EMR history." />
 
     <div class="card p-4">
@@ -73,7 +72,7 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
         }
       </div>
     }
-  `,
+  `
 })
 export class EmrLookupComponent {
   private patientService = inject(PatientService);

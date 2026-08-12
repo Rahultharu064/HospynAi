@@ -8,10 +8,9 @@ import { StatCardComponent } from '../../../../shared/components/card/stat-card.
 import { BarChartComponent, BarDatum } from '../../../../shared/components/card/bar-chart.component';
 
 @Component({
-  selector: 'app-analytics-overview',
-  standalone: true,
-  imports: [CommonModule, PageHeaderComponent, SpinnerComponent, StatCardComponent, BarChartComponent],
-  template: `
+    selector: 'app-analytics-overview',
+    imports: [CommonModule, PageHeaderComponent, SpinnerComponent, StatCardComponent, BarChartComponent],
+    template: `
     <app-page-header title="Analytics" subtitle="Operational and financial performance at a glance." />
 
     @if (loading()) {
@@ -53,7 +52,7 @@ import { BarChartComponent, BarDatum } from '../../../../shared/components/card/
       </div>
     }
     }
-  `,
+  `
 })
 export class AnalyticsOverviewComponent implements OnInit {
   private analyticsService = inject(AnalyticsService);

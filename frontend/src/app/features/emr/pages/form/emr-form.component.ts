@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { EmrService } from '../../services/emr.service';
@@ -8,10 +8,9 @@ import { firstErrorMessage } from '../../../../shared/utils/form-errors.util';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 
 @Component({
-  selector: 'app-emr-form',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, PageHeaderComponent],
-  template: `
+    selector: 'app-emr-form',
+    imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent],
+    template: `
     <app-page-header title="New medical record" />
 
     <form [formGroup]="form" (ngSubmit)="submit()" class="card max-w-3xl space-y-5 p-6">
@@ -93,7 +92,7 @@ import { PageHeaderComponent } from '../../../../shared/components/page-header/p
         </button>
       </div>
     </form>
-  `,
+  `
 })
 export class EmrFormComponent {
   private fb = inject(FormBuilder);

@@ -1,15 +1,14 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../../core/services/auth.service';
 import { firstErrorMessage } from '../../../../shared/utils/form-errors.util';
 
 @Component({
-  selector: 'app-forgot-password',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
-  template: `
+    selector: 'app-forgot-password',
+    imports: [ReactiveFormsModule, RouterLink],
+    template: `
     @if (!submitted()) {
       <h1 class="mb-1 font-display text-xl font-semibold text-gray-900">Forgot your password?</h1>
       <p class="mb-6 text-sm text-gray-500">
@@ -42,7 +41,7 @@ import { firstErrorMessage } from '../../../../shared/utils/form-errors.util';
     <p class="mt-6 text-center text-sm text-gray-500">
       <a routerLink="/auth/login" class="font-medium text-navy-500 hover:text-navy-600">Back to sign in</a>
     </p>
-  `,
+  `
 })
 export class ForgotPasswordComponent {
   private fb = inject(FormBuilder);
