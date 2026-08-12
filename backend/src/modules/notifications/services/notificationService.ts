@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import { Prisma, NotificationChannel, NotificationStatus } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import { EmailService } from '../../auth/services/emailService';
@@ -161,6 +162,169 @@ export class NotificationService {
   /**
    * Send appointment reminders
    */
+=======
+import { Prisma, NotificationChannel, NotificationStatus } from '@prisma/client';
+import prisma from '../../../config/prisma';
+import { EmailService } from '../../auth/services/emailService';
+import { SmsService } from '../../auth/services/smsService';
+import { AuditService } from '../../auth/services/auditService';
+import { sendRealTimeNotification } from '../../../utils/socket/notificationSocket';
+import { getTemplate, renderTemplate } from '../templates/notificationTemplates';
+import {
+  CreateNotificationInput,
+  BulkNotificationInput,
+  NotificationQueryInput,
+} from '../validators/notificationValidator';
+import {
+  BadRequestError,
+  NotFoundError,
+} from '../../../utils/errors';
+import {
+  NotificationResponse,
+  NotificationListResponse,
+  NotificationStats,
+  NotificationType,
+} from '../../../types/notificationTypes';
+import logger from '../../../utils/logger';
+
+export class NotificationService {
+  /**
+   * Create and send notification
+   */
+  static async createNotification(
+    data: CreateNotificationInput,
+    userId: string
+  ): Promise<NotificationResponse> {
+    const user = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { id: true, email: true, phone: true, firstName: true, lastName: true },
+    });
+
+    if (!user) throw new NotFoundError('User not found');
+
+    // Render template if provided
+    let title = data.title;
+    let message = data.message;
+    const templateData = data.templateData || {};
+
+    if (data.templateId) {
+      const template = getTemplate(data.type as NotificationType);
+      if (template) {
+        title = template.subject;
+        message = renderTemplate(template, {
+          ...templateData,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        }, data.channel || NotificationChannel.EMAIL);
+      }
+    }
+
+    // Calculate TTL
+    const ttl = data.ttl || 604800; // Default 7 days
+    const expiresAt = new Date(Date.now() + ttl * 1000);
+
+    // Create notification
+    const notification = await prisma.notification.create({
+      data: {
+        userId: data.userId,
+        title,
+        message,
+        type: data.type,
+        channel: data.channel || NotificationChannel.EMAIL,
+        status: NotificationStatus.PENDING,
+        templateId: data.templateId || null,
+        metadata: {
+          ...data.metadata,
+          templateData,
+          priority: data.priority || 'normal',
+          scheduledFor: data.scheduledFor,
+        },
+        sentAt: data.sendImmediately ? new Date() : null,
+      },
+    });
+
+    // Send immediately if requested
+    if (data.sendImmediately) {
+      await this.sendViaChannel(notification.id, user, data.channel || NotificationChannel.EMAIL);
+    }
+
+    // Send real-time notification via WebSocket
+    await sendRealTimeNotification(data.userId, {
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      data: notification.metadata,
+    });
+
+    logger.info(`Notification created: ${notification.id}`);
+    return this.formatNotificationResponse(notification);
+  }
+
+  /**
+   * Send via specific channel
+   */
+  private static async sendViaChannel(
+    notificationId: string,
+    user: { id: string; email: string; phone: string | null; firstName: string },
+    channel: NotificationChannel
+  ): Promise<void> {
+    const notification = await prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification) return;
+
+    try {
+      let sent = false;
+
+      switch (channel) {
+        case NotificationChannel.EMAIL:
+          sent = await EmailService.sendMail(
+            user.email,
+            notification.title,
+            notification.message
+          );
+          break;
+
+        case NotificationChannel.SMS:
+          if (user.phone) {
+            sent = await SmsService.sendSms(
+              user.phone,
+              `[VoiceMed Pro] ${notification.title}: ${notification.message.substring(0, 150)}`
+            );
+          }
+          break;
+
+        case NotificationChannel.PUSH:
+          sent = true; // Handled by WebSocket
+          break;
+      }
+
+      if (sent) {
+        await prisma.notification.update({
+          where: { id: notificationId },
+          data: {
+            status: NotificationStatus.SENT,
+            sentAt: new Date(),
+          },
+        });
+      }
+    } catch (error: any) {
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: {
+          status: NotificationStatus.FAILED,
+          errorMessage: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Send appointment reminders
+   */
+>>>>>>> Stashed changes
   static async sendAppointmentReminders(): Promise<{ sent: number; failed: number }> {
     const now = new Date();
     const reminderWindows = [24, 2, 1]; // hours before
