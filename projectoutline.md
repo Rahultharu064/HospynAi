@@ -1,10 +1,10 @@
-# VoiceMed Pro
+# HospynAI
 ## Product Requirements Document — v2.0
 
-> **Product:** VoiceMed Pro — AI-Powered Hospital Operating System
+> **Product:** HospynAI — AI-Powered Hospital Operating System
 > **Version:** 2.0 | **Status:** Final Draft | **Classification:** Confidential
 > **Type:** B2B SaaS Healthcare Platform | **Prepared By:** Product & Design Team
-> **Last Updated:** 2025
+> **Last Updated:** 2026
 
 ---
 
@@ -32,6 +32,7 @@
    - 4.16 OCR Document Scanner
 5. [Non-Functional Requirements](#5-non-functional-requirements)
 6. [System Architecture](#6-system-architecture)
+   - 6.3 Frontend Architecture (Next.js)
 7. [Database Schema](#7-database-schema)
 8. [UI/UX Design System](#8-uiux-design-system)
    - 8.1 Design Philosophy & Aesthetic Direction
@@ -57,7 +58,7 @@
 
 ## 1. Executive Summary
 
-VoiceMed Pro is a startup-grade, enterprise-ready **Hospital Operating System (Hospital OS)** that digitally transforms hospitals, clinics, and multi-branch healthcare providers through a unified, AI-first platform.
+HospynAI is a startup-grade, enterprise-ready **Hospital Operating System (Hospital OS)** that digitally transforms hospitals, clinics, and multi-branch healthcare providers through a unified, AI-first platform.
 
 ### 1.1 Core Value Proposition
 
@@ -86,10 +87,10 @@ VoiceMed Pro is a startup-grade, enterprise-ready **Hospital Operating System (H
 
 | Attribute | Value |
 |---|---|
-| Product Name | VoiceMed Pro |
+| Product Name | HospynAI |
 | Product Type | B2B SaaS Healthcare Platform (Hospital Operating System) |
 | Target Market | Hospitals, clinics, multi-branch healthcare providers, telemedicine platforms |
-| Deployment | Cloud-native — Vercel + Render + AWS S3, multi-tenant, multi-branch |
+| Deployment | Cloud-native — Next.js on Vercel + Render (API) + AWS S3, multi-tenant, multi-branch |
 | Licensing Model | Subscription-based SaaS with tiered plans per organization |
 | Compliance Targets | HIPAA, GDPR, WCAG 2.1 AA, OWASP Top-10 |
 
@@ -105,7 +106,7 @@ Healthcare institutions globally face persistent operational challenges that dir
 
 ### 2.3 Solution Overview
 
-VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Operating System integrating:
+HospynAI addresses these challenges through a unified, AI-first Hospital Operating System integrating:
 
 - Intelligent voice and agentic AI for autonomous workflow automation
 - A 24/7 AI calling layer that never misses a patient interaction
@@ -609,9 +610,9 @@ VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Ope
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 PRESENTATION LAYER                          │
-│      Angular 21 (Standalone + Signals) + Tailwind CSS        │
+│         React + Tailwind CSS + Redux Toolkit                │
 └─────────────────────────┬───────────────────────────────────┘
-                          │ HTTPS / REST
+                          │ HTTPS / REST (+ WebSocket)
 ┌─────────────────────────▼───────────────────────────────────┐
 │                  API GATEWAY LAYER                          │
 │           Node.js + Express + TypeScript                    │
@@ -641,7 +642,7 @@ VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Ope
 
 | Category | Technology | Purpose |
 |---|---|---|
-| Frontend | Angular 21 (standalone components + signals), Tailwind CSS, RxJS, Angular HttpClient | UI, state management, API calls |
+| Frontend | React 18, Tailwind CSS, Redux Toolkit, Axios | UI, state management, API calls |
 | Backend | Node.js 20, Express 4, TypeScript 5 | REST API and business logic |
 | Database | PostgreSQL 16, Prisma ORM | Relational data persistence |
 | AI / LLM | OpenAI GPT-4o, Whisper v3 | Language understanding and generation |
@@ -651,28 +652,9 @@ VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Ope
 | Blockchain | Polygon, Solidity, Hardhat | Record hashing and verification |
 | Payments | Stripe, Khalti, eSewa | Multi-gateway payment processing |
 | File Storage | AWS S3 + CloudFront CDN | Binary file and media storage |
-| Hosting | Vercel (Frontend), Render (Backend) | Cloud deployment |
+| Hosting | Vercel (Next.js frontend), Render (Backend) | Cloud deployment |
 | Notifications | Twilio SMS, SendGrid, Firebase FCM | Multi-channel alerts |
 | Monitoring | Datadog, Sentry | Performance and error tracking |
-
-### 6.3 Frontend Architecture
-
-The Angular application (`/frontend`) is a single-page app organized around feature isolation and strict typing, mirroring the backend's module boundaries.
-
-| Layer | Location | Responsibility |
-|---|---|---|
-| Core | `src/app/core` | `AuthService` (JWT access-token + httpOnly-cookie refresh flow), functional HTTP interceptors (auth attach/refresh-retry, error toasts), functional route guards (`authGuard`, `roleGuard`), shared models |
-| Layout | `src/app/layout` | App shell (sidebar + topbar), auth layout, role-filtered navigation |
-| Shared | `src/app/shared` | Reusable UI primitives (buttons, badges, pagination, stat cards, bar charts), form-error and validator utilities |
-| Features | `src/app/features/*` | One folder per domain (`auth`, `patients`, `appointments`, `emr`, `billing`, `admin`, `analytics`, `dashboard`, `settings`), each with its own routes, services, and typed request/response models matching the backend's Express routes exactly |
-
-**State management:** Angular signals (`signal`/`computed`) scoped per-service or per-component — no global store library. This keeps state colocated with the feature that owns it and avoids boilerplate for a domain this size; it can be swapped for NgRx later if cross-feature state sharing grows beyond what signals comfortably express.
-
-**Styling:** Tailwind CSS, themed via `tailwind.config.js` mapped 1:1 to the design tokens in §8.13 (navy/teal/indigo palette, Sora/DM Sans/JetBrains Mono type scale, spacing and radius scale) — no separate CSS-in-JS or component library.
-
-**Auth flow:** Access tokens are held in memory/`sessionStorage` and attached via interceptor; refresh tokens live in an httpOnly cookie set by the backend (`/api/v1/auth/refresh`) and are never touched by JS. A 401 triggers a single shared refresh call (`shareReplay`) that all concurrent failed requests wait on, then retries them — avoiding a refresh-storm on page load.
-
-**Quality gates:** `frontend-ci.yml` runs `ng lint` (typescript-eslint + `@angular-eslint` template rules, including accessibility checks such as `label-has-associated-control` and `click-events-have-key-events`) and a production `ng build` on every PR touching `frontend/`, mirroring `backend-ci.yml`'s `tsc --noEmit` + `eslint` + build gate for the API.
 
 ---
 
@@ -707,7 +689,7 @@ The Angular application (`/frontend`) is a single-page app organized around feat
 
 ## 8. UI/UX Design System
 
-> This section is the **single source of truth** for all visual and interaction design decisions in VoiceMed Pro. Every component, screen, and interaction must conform to these specifications.
+> This section is the **single source of truth** for all visual and interaction design decisions in HospynAI. Every component, screen, and interaction must conform to these specifications.
 
 ---
 
@@ -715,7 +697,7 @@ The Angular application (`/frontend`) is a single-page app organized around feat
 
 #### 8.1.1 Core Premise
 
-VoiceMed Pro serves medical professionals and patients in high-stakes healthcare environments. The design must simultaneously communicate:
+HospynAI serves medical professionals and patients in high-stakes healthcare environments. The design must simultaneously communicate:
 
 - **Authority & Trust** — the system handles life-critical data
 - **Intelligence** — AI is the core differentiator; it must feel genuinely advanced
@@ -938,7 +920,7 @@ Import: https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&display=s
 Weights: SemiBold (600), Bold (700), ExtraBold (800)
 ```
 
-Sora is a geometric sans-serif with slightly squared terminals that feel precise and modern without being cold. At large sizes it has excellent optical balance, and its numerals are highly legible for dashboard data. It has a distinctly non-generic character — hospitals using VoiceMed Pro will have a typeface that is immediately recognizable as theirs.
+Sora is a geometric sans-serif with slightly squared terminals that feel precise and modern without being cold. At large sizes it has excellent optical balance, and its numerals are highly legible for dashboard data. It has a distinctly non-generic character — hospitals using HospynAI will have a typeface that is immediately recognizable as theirs.
 
 **Used for:** Hero headlines, page titles, section headings, dashboard KPI numbers, card titles
 
@@ -1412,7 +1394,7 @@ Section padding: 32, 48, 64, 80, 96px
 
 #### 8.7.1 Primary Icon Library
 
-**Library:** Lucide React (`lucide-react`)
+**Library:** Lucide React (`lucide-react`) — used in Next.js Client Components
 **Style:** Outline stroke, consistent 2px stroke width, rounded line caps
 
 #### 8.7.2 Icon Size Scale
@@ -1497,7 +1479,7 @@ The following icons require custom SVG design (not available in Lucide):
 | `--duration-fast` | 150ms | Hover state changes, tooltip appear |
 | `--duration-normal` | 200ms | Standard UI transitions |
 | `--duration-moderate` | 300ms | Dropdown open, panel expand |
-| `--duration-slow` | 400ms | Modal open, route transitions |
+| `--duration-slow` | 400ms | Modal open, Next.js page transitions |
 | `--duration-slower` | 500ms | Page-level reveals |
 | `--duration-ai` | 800ms | AI loading state entry |
 | `--duration-pulse` | 1500ms | Background pulse loops |
@@ -1827,7 +1809,7 @@ In dark mode, higher elevation surfaces are **lighter**, not darker (MD3 elevati
 | Top diagnoses | Horizontal bar | Teal gradient bars |
 | Missed calls trend | Area chart | Danger-500 line, Danger-50 fill |
 
-**Chart specifications:** Recharts library, 16px DM Sans axis labels, gray-300 grid lines, navy-900 tooltip background, 300ms animation on load.
+**Chart specifications:** Recharts library (Next.js Client Components), 16px DM Sans axis labels, gray-300 grid lines, navy-900 tooltip background, 300ms animation on load.
 
 ---
 
@@ -2034,15 +2016,17 @@ In dark mode, higher elevation surfaces are **lighter**, not darker (MD3 elevati
 
 | Phase | Timeline | Deliverables | Success Criteria |
 |---|---|---|---|
-| **Phase 1** | Weeks 1–6 | Auth, Patient & Doctor Management, Appointment & Queue, Billing basics | Core ops digitized; zero paper-based bookings |
-| **Phase 2** | Weeks 7–12 | AI Voice Assistant, 24/7 AI Calling Agent, Full EMR, Notifications | 50% reduction in missed calls; voice booking live |
-| **Phase 3** | Weeks 13–18 | Blockchain Security, OCR Scanner, Analytics Dashboard | Tamper-proof records live; admin KPIs visible |
-| **Phase 4** | Weeks 19–26 | RAG Engine, Qdrant Memory, LangGraph Agentic AI, Telemedicine | Autonomous AI workflows; personalized patient experience |
+| **Phase 0** | Weeks 1–2 | Next.js scaffold, auth pages, middleware, API client, design tokens | Login/register/OTP flow end-to-end |
+| **Phase 1** | Weeks 3–8 | Auth, Patient & Doctor Management, Appointment & Queue, Billing basics | Core ops digitized; zero paper-based bookings |
+| **Phase 2** | Weeks 9–14 | AI Voice Assistant, 24/7 AI Calling Agent, Full EMR, Notifications | 50% reduction in missed calls; voice booking live |
+| **Phase 3** | Weeks 15–20 | Blockchain Security, OCR Scanner, Analytics Dashboard | Tamper-proof records live; admin KPIs visible |
+| **Phase 4** | Weeks 21–28 | RAG Engine, Qdrant Memory, LangGraph Agentic AI, Telemedicine | Autonomous AI workflows; personalized patient experience |
 
 ### 9.2 Feature Priority Matrix
 
 | Feature | Priority | Complexity | Phase |
 |---|---|---|---|
+| Next.js Frontend Scaffold | Critical | Medium | Phase 0 |
 | Authentication & RBAC | Critical | Medium | Phase 1 |
 | Appointment & Queue | Critical | Medium | Phase 1 |
 | Patient Management | Critical | Low | Phase 1 |
@@ -2066,7 +2050,7 @@ In dark mode, higher elevation surfaces are **lighter**, not darker (MD3 elevati
 
 | Test Type | Scope | Tooling | Coverage Target |
 |---|---|---|---|
-| Unit Testing | Functions, utilities, services, components | Jest (backend), Karma/Jasmine (Angular frontend) | ≥ 80% |
+| Unit Testing | Functions, utilities, services, components | Jest, React Testing Library | ≥ 80% |
 | Integration Testing | API routes, database, auth flows, module interactions | Jest, Supertest | Key flows |
 | API Testing | All REST endpoints, contracts, error handling | Postman, Newman (CI runner) | 100% endpoints |
 | Security Testing | OWASP Top-10, injection, auth bypass, RBAC | OWASP ZAP, manual pen testing | Quarterly |
@@ -2109,7 +2093,7 @@ In dark mode, higher elevation surfaces are **lighter**, not darker (MD3 elevati
 
 | Component | Platform | Configuration |
 |---|---|---|
-| Frontend | Vercel | Auto-deploy from `main`, Preview deployments for PRs |
+| Frontend | Vercel (Next.js) | App Router, auto-deploy from `main`, Preview deployments for PRs, Edge middleware |
 | Backend API | Render | Docker containers, autoscaling, health checks |
 | Database | PostgreSQL 16 (Render / Supabase) | Automated daily backups, point-in-time restore, connection pooling |
 | File Storage | AWS S3 + CloudFront CDN | AES-256 encryption, signed URL access, lifecycle policies |
@@ -2125,7 +2109,7 @@ In dark mode, higher elevation surfaces are **lighter**, not darker (MD3 elevati
 |---|---|---|
 | Development | `feature/*` | Local development, hot reload |
 | Staging | `develop` | Integration testing, QA review |
-| Preview | PR branches | Per-PR preview deployments (Vercel) |
+| Preview | PR branches | Per-PR Vercel preview deployments (Next.js) |
 | Production | `main` | Live environment, guarded deployments |
 
 ---
@@ -2134,6 +2118,10 @@ In dark mode, higher elevation surfaces are **lighter**, not darker (MD3 elevati
 
 | Term | Definition |
 |---|---|
+| **Next.js** | React framework with App Router — SSR, SSG, ISR, middleware, and file-based routing for the HospynAI frontend |
+| **App Router** | Next.js 13+ routing system using the `app/` directory with layouts, loading states, and Server Components |
+| **Server Components** | React components rendered on the server by Next.js — used for dashboards and SEO pages with less client JS |
+| **TanStack Query** | Library for server-state caching, background refetch, and optimistic updates in the Next.js client |
 | **Agentic AI** | AI systems capable of autonomous multi-step task execution without constant human input |
 | **RAG** | Retrieval-Augmented Generation — LLM pattern that grounds responses in retrieved source documents |
 | **EMR** | Electronic Medical Record — digitized longitudinal patient health information |
@@ -2163,6 +2151,6 @@ In dark mode, higher elevation surfaces are **lighter**, not darker (MD3 elevati
 
 ---
 
-*End of Document — VoiceMed Pro PRD v2.0*
+*End of Document — HospynAI PRD v2.0*
 *Confidential & Proprietary — For Internal Use Only*
-*© 2025 VoiceMed Pro. All rights reserved.* 
+*© 2026 HospynAI. All rights reserved.* 
