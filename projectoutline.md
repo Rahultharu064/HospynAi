@@ -609,7 +609,7 @@ VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Ope
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 PRESENTATION LAYER                          │
-│         React + Tailwind CSS + Redux Toolkit                │
+│      Angular 21 (Standalone + Signals) + Tailwind CSS        │
 └─────────────────────────┬───────────────────────────────────┘
                           │ HTTPS / REST
 ┌─────────────────────────▼───────────────────────────────────┐
@@ -641,7 +641,7 @@ VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Ope
 
 | Category | Technology | Purpose |
 |---|---|---|
-| Frontend | React 18, Tailwind CSS, Redux Toolkit, Axios | UI, state management, API calls |
+| Frontend | Angular 21 (standalone components + signals), Tailwind CSS, RxJS, Angular HttpClient | UI, state management, API calls |
 | Backend | Node.js 20, Express 4, TypeScript 5 | REST API and business logic |
 | Database | PostgreSQL 16, Prisma ORM | Relational data persistence |
 | AI / LLM | OpenAI GPT-4o, Whisper v3 | Language understanding and generation |
@@ -654,6 +654,25 @@ VoiceMed Pro addresses these challenges through a unified, AI-first Hospital Ope
 | Hosting | Vercel (Frontend), Render (Backend) | Cloud deployment |
 | Notifications | Twilio SMS, SendGrid, Firebase FCM | Multi-channel alerts |
 | Monitoring | Datadog, Sentry | Performance and error tracking |
+
+### 6.3 Frontend Architecture
+
+The Angular application (`/frontend`) is a single-page app organized around feature isolation and strict typing, mirroring the backend's module boundaries.
+
+| Layer | Location | Responsibility |
+|---|---|---|
+| Core | `src/app/core` | `AuthService` (JWT access-token + httpOnly-cookie refresh flow), functional HTTP interceptors (auth attach/refresh-retry, error toasts), functional route guards (`authGuard`, `roleGuard`), shared models |
+| Layout | `src/app/layout` | App shell (sidebar + topbar), auth layout, role-filtered navigation |
+| Shared | `src/app/shared` | Reusable UI primitives (buttons, badges, pagination, stat cards, bar charts), form-error and validator utilities |
+| Features | `src/app/features/*` | One folder per domain (`auth`, `patients`, `appointments`, `emr`, `billing`, `admin`, `analytics`, `dashboard`, `settings`), each with its own routes, services, and typed request/response models matching the backend's Express routes exactly |
+
+**State management:** Angular signals (`signal`/`computed`) scoped per-service or per-component — no global store library. This keeps state colocated with the feature that owns it and avoids boilerplate for a domain this size; it can be swapped for NgRx later if cross-feature state sharing grows beyond what signals comfortably express.
+
+**Styling:** Tailwind CSS, themed via `tailwind.config.js` mapped 1:1 to the design tokens in §8.13 (navy/teal/indigo palette, Sora/DM Sans/JetBrains Mono type scale, spacing and radius scale) — no separate CSS-in-JS or component library.
+
+**Auth flow:** Access tokens are held in memory/`sessionStorage` and attached via interceptor; refresh tokens live in an httpOnly cookie set by the backend (`/api/v1/auth/refresh`) and are never touched by JS. A 401 triggers a single shared refresh call (`shareReplay`) that all concurrent failed requests wait on, then retries them — avoiding a refresh-storm on page load.
+
+**Quality gates:** `frontend-ci.yml` runs `ng lint` (typescript-eslint + `@angular-eslint` template rules, including accessibility checks such as `label-has-associated-control` and `click-events-have-key-events`) and a production `ng build` on every PR touching `frontend/`, mirroring `backend-ci.yml`'s `tsc --noEmit` + `eslint` + build gate for the API.
 
 ---
 
@@ -2047,7 +2066,7 @@ In dark mode, higher elevation surfaces are **lighter**, not darker (MD3 elevati
 
 | Test Type | Scope | Tooling | Coverage Target |
 |---|---|---|---|
-| Unit Testing | Functions, utilities, services, components | Jest, React Testing Library | ≥ 80% |
+| Unit Testing | Functions, utilities, services, components | Jest (backend), Karma/Jasmine (Angular frontend) | ≥ 80% |
 | Integration Testing | API routes, database, auth flows, module interactions | Jest, Supertest | Key flows |
 | API Testing | All REST endpoints, contracts, error handling | Postman, Newman (CI runner) | 100% endpoints |
 | Security Testing | OWASP Top-10, injection, auth bypass, RBAC | OWASP ZAP, manual pen testing | Quarterly |

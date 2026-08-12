@@ -8,6 +8,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
     "blockchain:node": "npm run node --prefix ../blockchain",
     "blockchain:deploy": "npm run deploy:local --prefix ../blockchain"
   },
@@ -58,9 +60,11 @@
     "@types/passport": "^1.0.16",
     "@types/passport-google-oauth20": "^2.0.14",
     "@types/passport-jwt": "^4.0.0",
+    "eslint": "^9.39.5",
     "prisma": "^5.10.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.67.0"
   }
 }
