@@ -43,7 +43,7 @@ interface IMedicalRecordAnchor {
         string memory dataHash,
         string memory recordType,
         string memory patientId
-    ) external returns (bytes32);
+    ) external payable returns (bytes32);
 
     function verifyHash(
         string memory dataHash
@@ -55,7 +55,7 @@ interface IMedicalRecordAnchor {
         string[] memory dataHashes,
         string[] memory recordTypes,
         string[] memory patientIds
-    ) external returns (bytes32);
+    ) external payable returns (bytes32);
 
     function getRecordByHash(
         string memory dataHash

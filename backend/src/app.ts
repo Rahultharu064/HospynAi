@@ -7,6 +7,8 @@ import morgan from 'morgan';
 import passport from './config/passport';
 import { config } from './config';
 import { errorHandler, notFoundHandler } from './middleware/errorMiddleware';
+import prisma from './config/prisma';
+import { redis } from './config/redis';
 import authRoutes from '../src/modules/auth/routes/authRoute';
 import patientRoutes from "../src/modules/patient/routes/patientRoute"
 import appointmentRoutes from "../src/modules/appoinment/routes/appointmentRoute"
@@ -43,8 +45,44 @@ app.use(compression());
 app.use(morgan('combined', { stream: morganStream }));
 app.use(passport.initialize());
 
-app.get('/health', (req, res) => {
-  res.json({ success: true, status: 'healthy', timestamp: new Date().toISOString(), environment: config.nodeEnv });
+const HEALTH_CHECK_TIMEOUT_MS = 2000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Health check timed out')), timeoutMs)
+    ),
+  ]);
+}
+
+app.get('/health', async (req, res) => {
+  const [databaseResult, redisResult] = await Promise.allSettled([
+    withTimeout(prisma.$queryRaw`SELECT 1`, HEALTH_CHECK_TIMEOUT_MS),
+    withTimeout(redis.ping(), HEALTH_CHECK_TIMEOUT_MS),
+  ]);
+
+  const checks = {
+    database: databaseResult.status === 'fulfilled' ? 'healthy' : 'unhealthy',
+    redis: redisResult.status === 'fulfilled' ? 'healthy' : 'unhealthy',
+  };
+
+  if (databaseResult.status === 'rejected') {
+    logger.warn('Health check: database unreachable', { error: databaseResult.reason });
+  }
+  if (redisResult.status === 'rejected') {
+    logger.warn('Health check: redis unreachable', { error: redisResult.reason });
+  }
+
+  const isHealthy = databaseResult.status === 'fulfilled' && redisResult.status === 'fulfilled';
+
+  res.status(isHealthy ? 200 : 503).json({
+    success: isHealthy,
+    status: isHealthy ? 'healthy' : 'degraded',
+    checks,
+    timestamp: new Date().toISOString(),
+    environment: config.nodeEnv,
+  });
 });
 
 app.use('/api/v1/auth', authRoutes);
@@ -62,8 +100,6 @@ app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/ocr', ocrRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/calling', callingRoutes);
-// IMPORTANT: Twilio webhooks need raw body parsing
-app.use('/api/v1/calling/webhook', express.urlencoded({ extended: false }));
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/telemedicine', telemedicineRoutes);
 app.use('/api/v1/chatbot', chatbotRoutes);

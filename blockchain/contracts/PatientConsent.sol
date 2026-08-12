@@ -35,9 +35,12 @@ contract PatientConsent is IPatientConsent, Ownable, Pausable, ReentrancyGuard {
     
     // Default consent expiry (1 year)
     uint256 public constant DEFAULT_EXPIRY = 365 days;
-    
+
     // Maximum consent expiry (5 years)
     uint256 public constant MAX_EXPIRY = 1825 days;
+
+    // Mapping from provider address to authorization status
+    mapping(address => bool) private authorizedProviders;
 
     // ============================================
     // CONSTRUCTOR
@@ -45,11 +48,20 @@ contract PatientConsent is IPatientConsent, Ownable, Pausable, ReentrancyGuard {
 
     constructor() {
         // Contract owner is set by Ownable
+        authorizedProviders[msg.sender] = true;
     }
 
     // ============================================
     // MODIFIERS
     // ============================================
+
+    modifier onlyAuthorizedProvider() {
+        require(
+            authorizedProviders[msg.sender] || msg.sender == owner(),
+            "Not authorized provider"
+        );
+        _;
+    }
 
     modifier consentExists(bytes32 consentId) {
         require(consentLookup[consentId], "Consent not found");
@@ -83,11 +95,12 @@ contract PatientConsent is IPatientConsent, Ownable, Pausable, ReentrancyGuard {
         string memory accessLevel,
         uint256 expiresAt
     ) 
-        external 
-        override 
-        nonReentrant 
-        whenNotPaused 
-        returns (bytes32) 
+        external
+        override
+        nonReentrant
+        whenNotPaused
+        onlyAuthorizedProvider
+        returns (bytes32)
     {
         require(bytes(patientId).length > 0, "Patient ID required");
         require(provider != address(0), "Provider address required");
@@ -157,12 +170,13 @@ contract PatientConsent is IPatientConsent, Ownable, Pausable, ReentrancyGuard {
         bytes32 consentId,
         string memory reason
     ) 
-        external 
-        override 
-        nonReentrant 
-        whenNotPaused 
-        consentExists(consentId) 
-        consentActive(consentId) 
+        external
+        override
+        nonReentrant
+        whenNotPaused
+        onlyAuthorizedProvider
+        consentExists(consentId)
+        consentActive(consentId)
     {
         ConsentRecord storage record = consents[consentId];
 
@@ -197,12 +211,13 @@ contract PatientConsent is IPatientConsent, Ownable, Pausable, ReentrancyGuard {
         string memory accessLevel,
         uint256 expiresAt
     ) 
-        external 
-        override 
-        nonReentrant 
-        whenNotPaused 
-        consentExists(consentId) 
-        consentActive(consentId) 
+        external
+        override
+        nonReentrant
+        whenNotPaused
+        onlyAuthorizedProvider
+        consentExists(consentId)
+        consentActive(consentId)
     {
         require(
             keccak256(bytes(accessLevel)) == keccak256(bytes("READ")) ||
@@ -346,9 +361,35 @@ contract PatientConsent is IPatientConsent, Ownable, Pausable, ReentrancyGuard {
         return consents[consentId];
     }
 
+    /**
+     * @notice Check if a provider is authorized to manage consent records
+     */
+    function isAuthorizedProvider(address provider) external view returns (bool) {
+        return authorizedProviders[provider];
+    }
+
     // ============================================
     // ADMIN FUNCTIONS
     // ============================================
+
+    /**
+     * @notice Add authorized provider
+     */
+    function addAuthorizedProvider(address provider) external onlyOwner {
+        require(provider != address(0), "Invalid address");
+        require(!authorizedProviders[provider], "Already authorized");
+        authorizedProviders[provider] = true;
+    }
+
+    /**
+     * @notice Remove authorized provider
+     */
+    function removeAuthorizedProvider(address provider) external onlyOwner {
+        require(provider != address(0), "Invalid address");
+        require(authorizedProviders[provider], "Not authorized");
+        require(provider != owner(), "Cannot remove owner");
+        authorizedProviders[provider] = false;
+    }
 
     function pause() external onlyOwner {
         _pause();
