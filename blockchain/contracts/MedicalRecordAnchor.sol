@@ -100,16 +100,18 @@ contract MedicalRecordAnchor is IMedicalRecordAnchor, Ownable, Pausable, Reentra
         string memory dataHash,
         string memory recordType,
         string memory patientId
-    ) 
-        external 
-        override 
-        nonReentrant 
-        whenNotPaused 
-        onlyAuthorizedProvider 
-        validHash(dataHash) 
-        returns (bytes32) 
+    )
+        external
+        payable
+        override
+        nonReentrant
+        whenNotPaused
+        onlyAuthorizedProvider
+        validHash(dataHash)
+        returns (bytes32)
     {
         require(!records[dataHash].exists, "Record already anchored");
+        require(msg.value >= anchorFee, "Insufficient anchor fee");
 
         bytes32 txId = keccak256(
             abi.encodePacked(dataHash, block.timestamp, msg.sender, block.number)
@@ -201,21 +203,23 @@ contract MedicalRecordAnchor is IMedicalRecordAnchor, Ownable, Pausable, Reentra
         string[] memory dataHashes,
         string[] memory recordTypes,
         string[] memory patientIds
-    ) 
-        external 
-        override 
-        nonReentrant 
-        whenNotPaused 
-        onlyAuthorizedProvider 
-        returns (bytes32) 
+    )
+        external
+        payable
+        override
+        nonReentrant
+        whenNotPaused
+        onlyAuthorizedProvider
+        returns (bytes32)
     {
         require(
-            dataHashes.length == recordTypes.length && 
+            dataHashes.length == recordTypes.length &&
             dataHashes.length == patientIds.length,
             "Arrays must be same length"
         );
         require(dataHashes.length <= MAX_BATCH_SIZE, "Batch too large");
         require(dataHashes.length > 0, "Empty batch");
+        require(msg.value >= anchorFee * dataHashes.length, "Insufficient anchor fee");
 
         bytes32 batchId = keccak256(
             abi.encodePacked(
@@ -378,10 +382,11 @@ contract MedicalRecordAnchor is IMedicalRecordAnchor, Ownable, Pausable, Reentra
     /**
      * @notice Withdraw accumulated fees
      */
-    function withdrawFees() external onlyOwner {
+    function withdrawFees() external onlyOwner nonReentrant {
         uint256 balance = address(this).balance;
         require(balance > 0, "No fees to withdraw");
-        payable(platformWallet).transfer(balance);
+        (bool success, ) = payable(platformWallet).call{value: balance}("");
+        require(success, "Fee withdrawal failed");
     }
 
     // ============================================

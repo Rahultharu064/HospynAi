@@ -1,0 +1,45 @@
+name: Blockchain CI
+
+on:
+  pull_request:
+    paths:
+      - "blockchain/**"
+      - ".github/workflows/blockchain-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "blockchain/**"
+      - ".github/workflows/blockchain-ci.yml"
+
+defaults:
+  run:
+    working-directory: blockchain
+
+concurrency:
+  group: blockchain-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-and-test:
+    name: Compile & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: blockchain/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npm run compile
+
+      - name: Run contract test suite
+        run: npm test
+
+      - name: Check contract sizes
+        run: npm run size

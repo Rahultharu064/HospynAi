@@ -89,6 +89,8 @@ contract MedicalDataRegistry is Ownable, Pausable, ReentrancyGuard {
         string reason
     );
 
+    event ProviderReactivated(address indexed providerAddress);
+
     event StatsUpdated(
         uint256 totalAnchoredHashes,
         uint256 totalConsents,
@@ -112,6 +114,18 @@ contract MedicalDataRegistry is Ownable, Pausable, ReentrancyGuard {
     }
 
     // ============================================
+    // MODIFIERS
+    // ============================================
+
+    modifier onlyRegisteredProvider() {
+        require(
+            providers[msg.sender].isActive || msg.sender == owner(),
+            "Not a registered provider"
+        );
+        _;
+    }
+
+    // ============================================
     // CORE FUNCTIONS
     // ============================================
 
@@ -125,11 +139,12 @@ contract MedicalDataRegistry is Ownable, Pausable, ReentrancyGuard {
         string memory patientId,
         address targetProvider,
         string memory metadata
-    ) 
-        external 
-        nonReentrant 
-        whenNotPaused 
-        returns (bytes32) 
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        onlyRegisteredProvider
+        returns (bytes32)
     {
         require(bytes(dataHash).length > 0, "Data hash required");
         require(bytes(dataType).length > 0, "Data type required");
@@ -173,12 +188,15 @@ contract MedicalDataRegistry is Ownable, Pausable, ReentrancyGuard {
     function registerProvider(
         string memory name,
         string memory providerType
-    ) 
-        external 
-        returns (bool) 
+    )
+        external
+        returns (bool)
     {
         require(bytes(name).length > 0, "Name required");
-        require(!providers[msg.sender].isActive || providers[msg.sender].registeredAt == 0, "Already registered");
+
+        Provider storage existing = providers[msg.sender];
+        require(!existing.isActive, "Already registered");
+        require(existing.registeredAt == 0, "Provider was deactivated; ask an admin to reactivate");
 
         providers[msg.sender] = Provider({
             providerAddress: msg.sender,
@@ -188,9 +206,7 @@ contract MedicalDataRegistry is Ownable, Pausable, ReentrancyGuard {
             registeredAt: block.timestamp
         });
 
-        if (providers[msg.sender].registeredAt == 0) {
-            providerList.push(msg.sender);
-        }
+        providerList.push(msg.sender);
 
         emit ProviderRegistered(msg.sender, name, providerType);
         return true;
@@ -199,14 +215,27 @@ contract MedicalDataRegistry is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Deactivate a provider
      */
-    function deactivateProvider(address providerAddress, string memory reason) 
-        external 
-        onlyOwner 
+    function deactivateProvider(address providerAddress, string memory reason)
+        external
+        onlyOwner
     {
         require(providers[providerAddress].isActive, "Provider not active");
         providers[providerAddress].isActive = false;
 
         emit ProviderDeactivated(providerAddress, reason);
+    }
+
+    /**
+     * @notice Reactivate a previously deactivated provider
+     * @dev Deactivated providers cannot self-reactivate via registerProvider; only an admin can restore them
+     */
+    function reactivateProvider(address providerAddress) external onlyOwner {
+        Provider storage provider = providers[providerAddress];
+        require(provider.registeredAt > 0, "Provider not found");
+        require(!provider.isActive, "Provider already active");
+        provider.isActive = true;
+
+        emit ProviderReactivated(providerAddress);
     }
 
     // ============================================
