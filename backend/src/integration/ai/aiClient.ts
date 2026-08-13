@@ -174,15 +174,23 @@ export function extractJsonFromLLM(text: string): Record<string, any> {
  */
 export class LLMClient {
   private client: OpenAI;
+  private fallbackClient: OpenAI;
   private defaultModel: string;
   private configured: boolean;
 
   constructor() {
     this.defaultModel = config.groq.model;
-    this.configured = Boolean(config.groq.apiKey);
+    this.configured = Boolean(config.groq.apiKey || config.openai.apiKey);
+    
+    // Primary Client: Groq
     this.client = new OpenAI({
       apiKey: config.groq.apiKey || 'not-configured',
       baseURL: config.groq.baseUrl,
+    });
+
+    // Secondary Client: OpenAI
+    this.fallbackClient = new OpenAI({
+      apiKey: config.openai.apiKey || 'not-configured',
     });
 
     if (!this.configured) {
@@ -271,23 +279,42 @@ export class LLMClient {
   async chat(messages: ChatMessage[], options: ChatCompletionOptions = {}): Promise<ChatResponse> {
     this.ensureConfigured();
 
+    const tools = this.functionsToTools(options.functions);
+    const requestPayload = {
+      messages: this.normalizeMessages(messages),
+      temperature: options.temperature ?? 0.7,
+      max_tokens: options.maxTokens || 2000,
+      top_p: options.topP || 1,
+      frequency_penalty: options.frequencyPenalty || 0,
+      presence_penalty: options.presencePenalty || 0,
+      ...(tools
+        ? {
+            tools,
+            tool_choice: (options.functionCall === 'none' ? 'none' : 'auto') as any,
+          }
+        : {}),
+    };
+
+    let response;
     try {
-      const tools = this.functionsToTools(options.functions);
-      const response = await this.client.chat.completions.create({
+      // Try Primary (Groq)
+      response = await this.client.chat.completions.create({
+        ...requestPayload,
         model: options.model || this.defaultModel,
-        messages: this.normalizeMessages(messages),
-        temperature: options.temperature ?? 0.7,
-        max_tokens: options.maxTokens || 2000,
-        top_p: options.topP || 1,
-        frequency_penalty: options.frequencyPenalty || 0,
-        presence_penalty: options.presencePenalty || 0,
-        ...(tools
-          ? {
-              tools,
-              tool_choice: options.functionCall === 'none' ? 'none' : 'auto',
-            }
-          : {}),
       });
+    } catch (error) {
+      logger.warn('Primary AI provider (Groq) failed, falling back to OpenAI...', error);
+      try {
+        // Try Fallback (OpenAI)
+        response = await this.fallbackClient.chat.completions.create({
+          ...requestPayload,
+          model: 'gpt-4o-mini', // Cost-effective fallback
+        });
+      } catch (fallbackError) {
+        logger.error('All AI providers failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
 
       const choice = response.choices[0];
       const message = choice?.message;
@@ -304,10 +331,6 @@ export class LLMClient {
         },
         finishReason: choice?.finish_reason || 'stop',
       };
-    } catch (error) {
-      logger.error('Groq chat completion failed:', error);
-      throw error;
-    }
   }
 
   async streamChat(
@@ -317,15 +340,34 @@ export class LLMClient {
   ): Promise<void> {
     this.ensureConfigured();
 
-    try {
-      const stream = await this.client.chat.completions.create({
-        model: options.model || this.defaultModel,
-        messages: this.normalizeMessages(messages),
-        temperature: options.temperature ?? 0.7,
-        max_tokens: options.maxTokens || 2000,
-        stream: true,
-      });
+    const requestPayload = {
+      messages: this.normalizeMessages(messages),
+      temperature: options.temperature ?? 0.7,
+      max_tokens: options.maxTokens || 2000,
+      stream: true as const,
+    };
 
+    let stream;
+    try {
+      stream = await this.client.chat.completions.create({
+        ...requestPayload,
+        model: options.model || this.defaultModel,
+      });
+    } catch (error) {
+      logger.warn('Primary streaming provider (Groq) failed, falling back to OpenAI...', error);
+      try {
+        stream = await this.fallbackClient.chat.completions.create({
+          ...requestPayload,
+          model: 'gpt-4o-mini',
+        });
+      } catch (fallbackError: any) {
+        callbacks.onError(fallbackError);
+        logger.error('All streaming AI providers failed:', fallbackError);
+        return;
+      }
+    }
+
+    try {
       let fullContent = '';
       let finishReason = 'stop';
 
@@ -348,7 +390,7 @@ export class LLMClient {
       });
     } catch (error: any) {
       callbacks.onError(error);
-      logger.error('Groq stream chat failed:', error);
+      logger.error('Streaming chat failed during iteration:', error);
     }
   }
 

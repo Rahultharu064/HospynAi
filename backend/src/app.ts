@@ -48,10 +48,10 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/patient',patientRoutes)
+app.use('/api/v1/patient', patientRoutes)
 app.use('/api/v1/appointments', appointmentRoutes);
-app.use('/api/v1/billing',billingRoutes)
-app.use('/api/v1/doctor',doctorRoutes)
+app.use('/api/v1/billing', billingRoutes)
+app.use('/api/v1/doctor', doctorRoutes)
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/emr', emrRoutes);

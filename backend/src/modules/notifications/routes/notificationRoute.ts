@@ -21,10 +21,6 @@ const notificationLimiter = rateLimit({
 
 router.use(authenticate);
 
-// ============================================
-// NOTIFICATION ROUTES
-// ============================================
-
 // Create notification
 router.post(
   '/',
