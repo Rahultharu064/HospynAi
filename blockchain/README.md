@@ -1,57 +1,122 @@
-# Sample Hardhat 3 Project (`mocha` and `ethers`)
+# VoiceMed Pro — Blockchain Layer
 
-This project showcases a Hardhat 3 project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+Solidity smart contracts that give VoiceMed Pro's medical records, patient
+consent, prescriptions, and audit trail a tamper-evident, timestamped anchor
+on Polygon. The backend never stores clinical data on-chain — only hashes,
+consent metadata, and access-control state live here.
 
-To learn more about Hardhat 3, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3](https://hardhat.org/hardhat3-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+Built with Hardhat 2 (`@nomicfoundation/hardhat-toolbox` classic bundle),
+ethers v6, and OpenZeppelin Contracts 4.9.
 
-## Project Overview
+## Contracts
 
-This example project includes:
+| Contract | Purpose | Access control |
+| --- | --- | --- |
+| `MedicalRecordAnchor.sol` | Anchors SHA-256 hashes of medical records (EMR, prescriptions, lab reports) with revocation support and optional per-anchor fees. | `onlyAuthorizedProvider` (owner + explicitly authorized addresses) |
+| `PatientConsent.sol` | Grants, revokes, and updates patient consent for a provider to access a record type at a given access level. | `onlyAuthorizedProvider` (owner + explicitly authorized addresses) |
+| `PrescriptionVerifier.sol` | Tracks the prescription lifecycle: creation by a doctor, dispensing by a pharmacy, cancellation, refill counts. | `onlyDoctor` / `onlyPharmacy` (separate authorized-address sets) |
+| `MedicalDataRegistry.sol` | Unified audit trail across all data operations, plus a provider directory. | `onlyRegisteredProvider` for writes; registration is self-service, deactivation/reactivation is owner-only |
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+All four contracts inherit OpenZeppelin's `Ownable`, `Pausable`, and
+`ReentrancyGuard`. The contract owner can pause/unpause each contract
+independently and manage its authorized-address set.
+
+### Security model
+
+Every state-changing entry point that touches patient data requires the
+caller to be an explicitly authorized address (or the contract owner) —
+there is no contract in this project where an arbitrary wallet can write
+consent, anchor a record, or forge an audit-trail entry. The deployer wallet
+is auto-authorized in each constructor, matching the single-signer pattern
+used by the backend's `polygonClient.ts` integration, so no extra
+authorization step is needed after a fresh deployment.
+
+`MedicalDataRegistry.registerProvider()` is the one self-service exception:
+any address can register itself as a provider, but once the owner
+deactivates a provider (`deactivateProvider`), that address **cannot**
+re-register itself back to active status — only `reactivateProvider`
+(owner-only) can restore it. This prevents a deactivated/compromised
+provider from silently undoing an admin's compliance action.
+
+## Project layout
+
+```
+contracts/               Solidity sources
+  interfaces/             Shared interfaces (IMedicalRecordAnchor, IPatientConsent)
+scripts/deploy.ts         Deploys all 4 contracts with one signer, writes deployments/<network>.json
+test/                     Mocha + chai integration tests (one file per contract)
+deployments/              Deployment output per network (gitignored except structure)
+hardhat.config.cts        Networks, compiler, Etherscan/Polygonscan verification config
+```
+
+## Setup
+
+```shell
+npm install
+cp .env.example .env   # fill in your own values — see below
+```
+
+`.env` variables:
+
+| Variable | Required for | Notes |
+| --- | --- | --- |
+| `BLOCKCHAIN_PRIVATE_KEY` | Deploying to Amoy/Polygon | Dedicated deployer key. **Never** reuse a personal wallet or commit this file. |
+| `POLYGON_AMOY_RPC` / `POLYGON_MAINNET_RPC` | Deploying to Amoy/Polygon | Alchemy (or any) RPC endpoint. |
+| `PLATFORM_WALLET` | `MedicalRecordAnchor` deployment | Receives anchor fees; can be a multisig. |
+| `POLYGONSCAN_API_KEY` | Contract verification | Used by `hardhat-verify`. |
+
+`.env` is gitignored. Only `.env.example` (placeholder values) is tracked.
 
 ## Usage
 
-### Running Tests
-
-To run all the tests in the project, execute the following command:
+### Compile
 
 ```shell
-npx hardhat test
+npm run compile
 ```
 
-You can also selectively run the Solidity or `mocha` tests:
+### Test
 
 ```shell
-npx hardhat test solidity
-npx hardhat test mocha
+npm test              # full mocha + chai suite, one file per contract
+npm run test:coverage # solidity-coverage report
 ```
 
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
+### Local node + deploy
 
 ```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+npm run node                 # starts a local Hardhat chain
+npm run deploy:local          # deploys all 4 contracts to it
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+### Testnet / mainnet deploy
 
 ```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+npm run deploy:amoy      # Polygon Amoy testnet
+npm run deploy:polygon   # Polygon mainnet
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
+`scripts/deploy.ts` deploys `MedicalRecordAnchor`, `PatientConsent`,
+`PrescriptionVerifier`, and `MedicalDataRegistry` in sequence from the same
+signer, writes the resulting addresses to `deployments/<network>.json`, and
+prints a ready-to-paste `.env` snippet for the backend
+(`BLOCKCHAIN_*_ADDRESS` variables consumed by
+`backend/src/integration/blockchain/polygonClient.ts`).
+
+### Verify on Polygonscan
 
 ```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+npm run verify:amoy -- <address> <constructor-args...>
+npm run verify:polygon -- <address> <constructor-args...>
 ```
+
+### Contract size check
+
+```shell
+npm run size
+```
+
+## CI
+
+`.github/workflows/blockchain-ci.yml` compiles the contracts and runs the
+full test suite on every PR/push that touches `blockchain/`.
