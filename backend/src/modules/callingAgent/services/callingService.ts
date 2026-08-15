@@ -2,7 +2,7 @@ import { CallOutcome, VoiceInteractionType } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import { config } from '../../../config';
 import { twilioClient } from '../../../integration/twilio/twilioClient';
-import { gptClient } from '../../../integration/ai/aiClient';
+import { llmClient } from '../../../integration/ai/aiClient';
 import { AuditService } from '../../auth/services/auditService';
 import {
   InitiateCallInput, TransferToHumanInput, CallQueryInput,
@@ -21,10 +21,10 @@ export class CallingService {
     let message = data.message;
     if (!message) {
       const messages: Record<string, string> = {
-        REMINDER: `Hello ${patient.firstName}, this is VoiceMed Pro reminding you about your upcoming appointment.`,
-        FOLLOW_UP: `Hello ${patient.firstName}, this is VoiceMed Pro following up on your recent visit.`,
-        APPOINTMENT_CONFIRMATION: `Hello ${patient.firstName}, this is VoiceMed Pro confirming your appointment.`,
-        GENERAL: `Hello ${patient.firstName}, this is VoiceMed Pro calling. How can we help?`,
+        REMINDER: `Hello ${patient.firstName}, this is HospynAI reminding you about your upcoming appointment. Please say confirm to confirm, or reschedule to change the date.`,
+        FOLLOW_UP: `Hello ${patient.firstName}, this is HospynAI following up on your recent visit. How are you feeling today? Please speak freely.`,
+        APPOINTMENT_CONFIRMATION: `Hello ${patient.firstName}, this is HospynAI confirming your upcoming appointment. Please say confirm to proceed, or cancel to cancel.`,
+        GENERAL: `Hello ${patient.firstName}, this is HospynAI calling. How can we help you today?`,
       };
       message = messages[data.callType] || messages.GENERAL;
     }
@@ -60,7 +60,7 @@ export class CallingService {
     });
 
     return patient
-      ? twilioClient.generateResponseTwiML(`Hello ${patient.firstName}! Welcome back to VoiceMed Pro. How can I help you today?`)
+      ? twilioClient.generateResponseTwiML(`Hello ${patient.firstName}! Welcome back to HospynAI. How can I help you today?`)
       : twilioClient.generateIncomingTwiML();
   }
 
@@ -71,32 +71,39 @@ export class CallingService {
 
     if (fallback || !userInput) {
       await prisma.callLog.update({ where: { callSid: CallSid }, data: { outcome: CallOutcome.MISSED, endedAt: new Date() } });
-      return twilioClient.generateEndCallTwiML('I didn\'t hear anything. Please call back when ready.');
+      return twilioClient.generateEndCallTwiML('I didn\'t hear anything. Please call back when ready. Goodbye!');
     }
 
-    const intentResult = await gptClient.classifyIntent(userInput);
-    if (intentResult.intent === 'EMERGENCY' || (intentResult.entities as any)?.urgency === 'emergency') {
+    const intentResult = await llmClient.classifyIntent(userInput);
+
+    // Emergency routing — highest priority
+    if (intentResult.intent === 'EMERGENCY' || intentResult.urgency === 'emergency') {
       return this.handleEmergency(CallSid, userInput);
     }
 
-    const aiResponse = await gptClient.generateResponse(userInput, intentResult.intent, {});
+    const aiResponse = await llmClient.generateResponse(userInput, intentResult.intent, {});
     const callLog = await prisma.callLog.findUnique({ where: { callSid: CallSid } });
 
     if (callLog) {
       await prisma.voiceLog.create({
         data: {
-          patientId: callLog.patientId, interactionType: intentResult.interactionType as VoiceInteractionType,
-          transcript: userInput, aiResponse: aiResponse.response,
-          confidence: parseFloat(Confidence || '0.8'), intent: intentResult.intent,
-          metadata: { callSid: CallSid, entities: intentResult.entities },
+          patientId: callLog.patientId,
+          interactionType: (intentResult.interactionType || 'voice') as VoiceInteractionType,
+          transcript: userInput,
+          aiResponse: aiResponse.response,
+          confidence: parseFloat(Confidence || '0.8'),
+          intent: intentResult.intent,
+          metadata: { callSid: CallSid, entities: intentResult.entities, urgency: intentResult.urgency },
         },
       });
     }
 
-    if (aiResponse.action === 'ESCALATE' || parseFloat(Confidence || '0.8') < 0.5) {
+    // Transfer to human if AI confidence is low or escalation required
+    const confidence = parseFloat(Confidence || '0.8');
+    if (aiResponse.action === 'ESCALATE' || confidence < 0.55) {
       return twilioClient.generateTransferTwiML(
         process.env.HUMAN_AGENT_NUMBER || '+1234567890',
-        'Let me transfer you to a human agent.'
+        'Let me connect you with a human agent who can better assist you. Please hold.'
       );
     }
 
@@ -111,7 +118,7 @@ export class CallingService {
 
     return twilioClient.generateTransferTwiML(
       process.env.EMERGENCY_NUMBER || '911',
-      'I understand this may be an emergency. Transferring to emergency services now.'
+      'I understand this may be an emergency. Transferring to emergency services now. Please stay on the line.'
     );
   }
 
@@ -141,10 +148,7 @@ export class CallingService {
       updateData.duration = CallDuration ? parseInt(CallDuration) : null;
       updateData.recordingUrl = RecordingUrl || null;
       updateData.outcome = callLog.handoffReason ? CallOutcome.HANDED_OFF : callLog.aiHandled ? CallOutcome.AI_RESOLVED : callLog.outcome;
-    } else if (['no-answer', 'busy'].includes(CallStatus)) {
-      updateData.outcome = CallOutcome.MISSED;
-      updateData.endedAt = new Date();
-    } else if (CallStatus === 'failed') {
+    } else if (['no-answer', 'busy', 'failed'].includes(CallStatus)) {
       updateData.outcome = CallOutcome.MISSED;
       updateData.endedAt = new Date();
     }
@@ -154,7 +158,18 @@ export class CallingService {
   }
 
   static async handleVoicemail(data: any): Promise<void> {
-    logger.info(`Voicemail handled for ${data.CallSid}`);
+    const { CallSid, RecordingUrl, RecordingDuration, TranscriptionText } = data;
+    logger.info(`Voicemail received for ${CallSid} (${RecordingDuration}s)`);
+    await prisma.callLog.update({
+      where: { callSid: CallSid },
+      data: {
+        recordingUrl: RecordingUrl || null,
+        transcript: TranscriptionText || null,
+        outcome: CallOutcome.MISSED,
+        endedAt: new Date(),
+        duration: RecordingDuration ? parseInt(RecordingDuration) : null,
+      },
+    }).catch((e) => logger.warn('Voicemail callLog update failed:', e));
   }
 
   static async handleTranscription(data: any): Promise<void> {
@@ -193,14 +208,10 @@ export class CallingService {
     const callLog = await prisma.callLog.findUnique({ where: { callSid } });
     if (!callLog) throw new NotFoundError('Call not found');
 
-    // Voice logs are stored separately and may contain callSid in metadata.
-    // Query voice logs that reference this callSid in their metadata JSON.
-    // Prisma JSON filters vary by version and typings; to avoid incompatible JSON filters
-    // fetch recent voice logs and filter in JS by checking metadata.callSid.
     const allVoiceLogs = await prisma.voiceLog.findMany({ orderBy: { createdAt: 'asc' } });
     const voiceLogs = allVoiceLogs.filter((v) => (v.metadata as any)?.callSid === callSid);
 
-    const transcript = voiceLogs.map((v) => v.transcript).filter(Boolean).join('\n') || '';
+    const transcript = voiceLogs.map((v) => v.transcript).filter(Boolean).join('\n') || callLog.transcript || '';
     return { callSid: callLog.callSid, transcript, segments: [], duration: callLog.duration || 0 };
   }
 
@@ -214,12 +225,20 @@ export class CallingService {
       prisma.callLog.count({ where: { outcome: 'MISSED' } }),
     ]);
 
+    // Real average duration from DB instead of hardcoded value
+    const durationAgg = await prisma.callLog.aggregate({
+      _avg: { duration: true },
+      where: { duration: { gt: 0 } },
+    });
+    const averageDuration = Math.round(durationAgg._avg.duration || 0);
+
     return {
       totalCalls, inboundCalls, outboundCalls, aiResolved, handedOff, missed,
-      averageDuration: 120,
-      aiResolutionRate: totalCalls > 0 ? (aiResolved / totalCalls) * 100 : 0,
-      missedCallRate: totalCalls > 0 ? (missed / totalCalls) * 100 : 0,
-      averageHandoffTime: 45, peakHours: [], dailyVolume: [], outcomes: {},
+      averageDuration,
+      aiResolutionRate: totalCalls > 0 ? Math.round((aiResolved / totalCalls) * 1000) / 10 : 0,
+      missedCallRate: totalCalls > 0 ? Math.round((missed / totalCalls) * 1000) / 10 : 0,
+      averageHandoffTime: 0, peakHours: [], dailyVolume: [],
+      outcomes: { aiResolved, handedOff, missed },
     };
   }
 

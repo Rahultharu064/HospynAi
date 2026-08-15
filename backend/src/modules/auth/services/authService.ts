@@ -122,7 +122,7 @@ export class AuthService {
       return newUser;
     });
 
-    // Send verification OTP — must succeed before returning success
+    // Send verification OTP — in production this must succeed; in dev, log & continue
     try {
       await OtpService.createAndSendOtp(
         user.id,
@@ -133,8 +133,15 @@ export class AuthService {
       );
     } catch (error) {
       logger.error('Failed to send verification email during registration:', error);
-      throw new InternalServerError(
-        'Account created but verification email could not be sent. Please use POST /api/v1/auth/resend-otp to try again.'
+      if (config.nodeEnv === 'production') {
+        throw new InternalServerError(
+          'Account created but verification email could not be sent. Please use POST /api/v1/auth/resend-otp to try again.'
+        );
+      }
+      // In development — log a warning so the dev can continue without email
+      logger.warn(
+        `[DEV] Email delivery failed for ${user.email}. ` +
+        `Use POST /api/v1/auth/resend-otp to get a new OTP, or check the backend logs above for the OTP code.`
       );
     }
 

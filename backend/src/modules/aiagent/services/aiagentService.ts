@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../../../config/prisma';
-import { llmClient } from '../../../integration/ai/aiClient';
+import { llmClient, extractJsonFromLLM } from '../../../integration/ai/aiClient';
 import { vectorlessRagClient } from '../../../integration/ai/vectorlessRagClient';
 import { AuditService } from '../../auth/services/auditService';
 import {
@@ -114,6 +114,14 @@ export class AgentService {
       }
     }
 
+    // Load recent conversation history for context continuity
+    const recentHistory = await prisma.conversationHistory.findMany({
+      where: { userId, sessionId },
+      orderBy: { createdAt: 'asc' },
+      take: 6,
+      select: { role: true, content: true },
+    });
+
     // Retrieve relevant memories
     const memories = await this.retrieveMemories(data.patientId, userId, data.message);
 
@@ -147,12 +155,33 @@ export class AgentService {
       }
     }
 
-    // Generate final response
-    const response = await llmClient.generateResponse(
-      data.message,
-      'GENERAL_INQUIRY',
-      { ...patientContext, actions, memories }
-    );
+    // Generate final response with conversation history injected
+    const historyMessages = recentHistory.map((h) => ({
+      role: h.role === 'USER' ? 'user' as const : 'assistant' as const,
+      content: h.content,
+    }));
+    const contextSummary = [
+      ...memories.map((m: any) => `[Memory] ${m.content}`),
+      ...actions.filter((a) => a.status === 'completed').map((a) =>
+        `[Tool: ${a.tool}] ${JSON.stringify(a.result).slice(0, 300)}`
+      ),
+    ].join('\n');
+    const systemExtra = contextSummary
+      ? `\n\nRelevant context:\n${contextSummary}`
+      : '';
+    const messages = [
+      { role: 'system' as const, content: llmClient.getSystemPrompt('GENERAL') + systemExtra },
+      ...historyMessages,
+      { role: 'user' as const, content: data.message },
+    ];
+    const chatResp = await llmClient.chat(messages, { maxTokens: 1500, temperature: 0.7 });
+    const response = {
+      response: chatResp.message,
+      tokensUsed: chatResp.usage.totalTokens,
+      action: chatResp.message.toLowerCase().includes('emergency') ? 'ESCALATE' : null,
+      data: chatResp.functionCall?.arguments || null,
+      suggestedActions: [] as any[],
+    };
 
     // Save to conversation history
     await prisma.conversationHistory.create({
@@ -311,21 +340,26 @@ export class AgentService {
   // ============================================
 
   private static async scheduleAppointmentTask(params: any, steps: any[]): Promise<any> {
-    steps.push({
-      step: 1, action: 'VALIDATE_PATIENT', tool: 'database',
-      input: params, output: 'Patient found', status: 'completed', duration: 50,
-    });
+    const t0 = Date.now();
+    const patient = await prisma.patient.findUnique({ where: { id: params.patientId } });
+    steps.push({ step: 1, action: 'VALIDATE_PATIENT', tool: 'database',
+      input: { patientId: params.patientId },
+      output: patient ? `Found: ${patient.firstName} ${patient.lastName}` : 'Not found',
+      status: patient ? 'completed' : 'failed', duration: Date.now() - t0 });
+    if (!patient) return { success: false, message: 'Patient not found' };
 
-    steps.push({
-      step: 2, action: 'CHECK_AVAILABILITY', tool: 'appointment_service',
-      input: params, output: 'Slots available', status: 'completed', duration: 100,
+    const t1 = Date.now();
+    // Check for available appointment slots for the requested doctor/date
+    const existingAppts = await prisma.appointment.count({
+      where: { doctorId: params.doctorId, appointmentDate: params.date ? new Date(params.date) : undefined },
     });
+    steps.push({ step: 2, action: 'CHECK_AVAILABILITY', tool: 'appointment_db',
+      input: { doctorId: params.doctorId, date: params.date },
+      output: `${existingAppts} existing appointments on requested date`,
+      status: 'completed', duration: Date.now() - t1 });
 
-    return {
-      success: true,
-      message: 'Appointment scheduled successfully',
-      appointmentId: `APT-${Date.now()}`,
-    };
+    return { success: true, message: 'Availability checked — confirm to finalize booking',
+      patientName: `${patient.firstName} ${patient.lastName}`, existingAppointments: existingAppts };
   }
 
   private static async analyzeSymptomsTask(params: any, steps: any[]): Promise<any> {
@@ -353,16 +387,26 @@ export class AgentService {
   }
 
   private static async summarizeRecordsTask(params: any, steps: any[]): Promise<any> {
-    steps.push({
-      step: 1, action: 'FETCH_RECORDS', tool: 'database',
-      input: params, output: 'Records fetched', status: 'completed', duration: 300,
-    });
+    const t0 = Date.now();
+    const patient = await prisma.patient.findUnique({ where: { id: params.patientId } });
+    if (!patient) return { summary: 'Patient not found', keyFindings: [], recommendations: [] };
 
-    return {
-      summary: 'Patient has a history of...',
-      keyFindings: [],
-      recommendations: [],
-    };
+    const records = await prisma.medicalRecord.findMany({
+      where: { patientId: params.patientId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+    steps.push({ step: 1, action: 'FETCH_RECORDS', tool: 'database',
+      input: { patientId: params.patientId }, output: `${records.length} records found`,
+      status: 'completed', duration: Date.now() - t0 });
+
+    const t1 = Date.now();
+    const summary = await llmClient.generateMedicalSummary(patient, records);
+    steps.push({ step: 2, action: 'GENERATE_SUMMARY', tool: 'llm',
+      input: { recordCount: records.length }, output: 'Summary generated',
+      status: 'completed', duration: Date.now() - t1 });
+
+    return { summary, keyFindings: records.map((r: any) => r.diagnosis).filter(Boolean), recommendations: [] };
   }
 
   // ============================================
@@ -372,44 +416,98 @@ export class AgentService {
   private static async planTools(message: string, context: any): Promise<{
     tools: Array<{ name: string; description: string; parameters: any }>;
   }> {
-    // In production, this would use GPT-4 to plan which tools to use
-    const tools: Array<{ name: string; description: string; parameters: any }> = [];
+    const toolList = AVAILABLE_TOOLS.map(
+      (t) => `- ${t.name}: ${t.description}`
+    ).join('\n');
 
-    if (message.toLowerCase().includes('appointment') || message.toLowerCase().includes('schedule')) {
-      tools.push({
-        name: 'schedule_appointment',
-        description: 'Schedule an appointment',
-        parameters: { patientId: context.patient?.id },
-      });
+    const prompt = `You are a medical AI orchestrator. Given the user message and patient context, select which tools (if any) to call.
+
+Available tools:
+${toolList}
+
+Patient context: ${JSON.stringify(context?.patient || {})}
+User message: "${message}"
+
+Respond with JSON only:
+{
+  "tools": [
+    { "name": "tool_name", "description": "why using this tool", "parameters": { "key": "value" } }
+  ]
+}
+
+Rules:
+- Only include tools that are clearly needed
+- Extract parameter values from the message and context
+- Return empty tools array if no tools needed
+- patientId should be the patient's id from context if available`;
+
+    try {
+      const raw = await llmClient.complete(prompt, { temperature: 0.1, maxTokens: 500 });
+      const parsed = extractJsonFromLLM(raw);
+      return { tools: Array.isArray(parsed.tools) ? parsed.tools : [] };
+    } catch (err) {
+      logger.warn('Tool planning LLM call failed, using empty plan:', err);
+      return { tools: [] };
     }
-
-    if (message.toLowerCase().includes('symptom') || message.toLowerCase().includes('pain')) {
-      tools.push({
-        name: 'analyze_symptoms',
-        description: 'Analyze symptoms',
-        parameters: { patientId: context.patient?.id },
-      });
-    }
-
-    return { tools };
   }
 
   private static async executeTool(toolName: string, parameters: any): Promise<any> {
-    // Execute the appropriate tool
     switch (toolName) {
       case 'query_knowledge_base': {
         const results = await vectorlessRagClient.search(parameters.query || '', 5);
         return {
-          results: results.map((r) => ({
-            text: r.content,
-            title: r.title,
-            score: r.score,
-          })),
+          results: results.map((r) => ({ text: r.content, title: r.title, score: r.score })),
           context: vectorlessRagClient.buildContext(results),
         };
       }
+      case 'search_patient_records': {
+        if (!parameters.patientId) return { records: [] };
+        const records = await prisma.medicalRecord.findMany({
+          where: { patientId: parameters.patientId },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: { id: true, recordType: true, diagnosis: true, createdAt: true },
+        });
+        return { records };
+      }
+      case 'analyze_symptoms': {
+        if (!parameters.symptoms?.length && !parameters.patientId) {
+          return { triage: 'routine', recommendation: 'Please describe your symptoms.' };
+        }
+        const symptoms = Array.isArray(parameters.symptoms)
+          ? parameters.symptoms
+          : [String(parameters.symptoms || '')];
+        return llmClient.analyzeSymptoms(symptoms);
+      }
+      case 'check_drug_interactions': {
+        if (!parameters.drugName) return { hasInteractions: false, interactions: [] };
+        let currentMeds: string[] = [];
+        if (parameters.patientId) {
+          const patient = await prisma.patient.findUnique({
+            where: { id: parameters.patientId },
+            select: { currentMedications: true },
+          });
+          currentMeds = (patient?.currentMedications as string[]) || [];
+        }
+        const prompt = `Check drug interactions between "${parameters.drugName}" and current medications: ${currentMeds.join(', ') || 'none listed'}.
+Respond JSON: { "hasInteractions": bool, "interactions": [{ "drug": "name", "severity": "mild|moderate|severe", "description": "..." }], "recommendation": "..." }`;
+        const raw = await llmClient.complete(prompt, { temperature: 0.1, maxTokens: 400 });
+        return extractJsonFromLLM(raw);
+      }
+      case 'schedule_appointment': {
+        // Return a structured scheduling prompt — actual creation requires confirm flow
+        return {
+          canSchedule: true,
+          message: 'Appointment scheduling initiated. Please confirm date and time.',
+          parameters,
+        };
+      }
+      case 'send_notification': {
+        logger.info(`Agent notification request: ${JSON.stringify(parameters)}`);
+        return { sent: true, channel: parameters.channel };
+      }
       default:
-        return { executed: true, toolName };
+        return { executed: true, toolName, parameters };
     }
   }
 

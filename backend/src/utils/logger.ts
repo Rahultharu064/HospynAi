@@ -12,7 +12,7 @@ const logger = winston.createLogger({
     winston.format.metadata({ fillExcept: ['message', 'level', 'timestamp', 'label'] }),
     winston.format.json()
   ),
-  defaultMeta: { service: 'voicemed-pro-api' },
+  defaultMeta: { service: 'hospynai-api' },
   transports: [
     // Console transport for all environments
     new winston.transports.Console({
