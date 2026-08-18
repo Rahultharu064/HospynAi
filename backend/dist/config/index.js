@@ -102,6 +102,10 @@ exports.config = {
         apiKey: process.env.OPENAI_API_KEY || '',
         embeddingModel: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
     },
+    anthropic: {
+        apiKey: process.env.ANTHROPIC_API_KEY || '',
+        model: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+    },
     blockchain: {
         enabled: process.env.BLOCKCHAIN_ENABLED === 'true',
         networkId: blockchainNetworkId,

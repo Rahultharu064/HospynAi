@@ -5,11 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.langGraphAgent = exports.LangGraphAgent = void 0;
 const langgraph_1 = require("@langchain/langgraph");
-const openai_1 = require("@langchain/openai");
+const llmFactory_1 = require("./llmFactory");
 const tools_1 = require("@langchain/core/tools");
 const messages_1 = require("@langchain/core/messages");
 const zod_1 = require("zod");
-const config_1 = require("../../config");
 const logger_1 = __importDefault(require("../../utils/logger"));
 const prisma_1 = __importDefault(require("../../config/prisma"));
 const vectorlessRagClient_1 = require("./vectorlessRagClient");
@@ -399,14 +398,9 @@ class QueryKnowledgeBaseTool extends tools_1.StructuredTool {
  */
 class LangGraphAgent {
     constructor() {
-        this.model = new openai_1.ChatOpenAI({
-            modelName: config_1.config.groq.model,
+        this.model = llmFactory_1.LLMFactory.getFallbackModel({
             temperature: 0.3,
             maxTokens: 2000,
-            configuration: {
-                baseURL: config_1.config.groq.baseUrl,
-                apiKey: config_1.config.groq.apiKey,
-            },
         });
         this.tools = [
             new ScheduleAppointmentTool(),

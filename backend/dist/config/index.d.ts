@@ -78,6 +78,10 @@ export declare const config: {
         apiKey: string;
         embeddingModel: string;
     };
+    anthropic: {
+        apiKey: string;
+        model: string;
+    };
     blockchain: {
         enabled: boolean;
         networkId: number;

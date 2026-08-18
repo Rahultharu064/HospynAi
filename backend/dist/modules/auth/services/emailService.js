@@ -112,7 +112,10 @@ class EmailServiceClass {
         }
         catch (error) {
             if (config_1.config.nodeEnv === 'development') {
-                logger_1.default.warn(`[DEV] OTP email failed for ${to}. Verification code: ${otp} (expires in ${config_1.config.otp.expiryMinutes} min)`);
+                logger_1.default.warn(`[DEV] OTP email failed for ${to}. ` +
+                    `>>> Verification code: ${otp} <<< (expires in ${config_1.config.otp.expiryMinutes} min)`);
+                // In development, don't throw — the OTP is visible in the terminal above
+                return;
             }
             throw error;
         }
@@ -135,22 +138,22 @@ class EmailServiceClass {
         <body>
           <div class="container">
             <div class="header">
-              <h1>Welcome to VoiceMed Pro</h1>
+              <h1>Welcome to HospynAi</h1>
             </div>
             <div class="content">
               <p>Hi ${firstName},</p>
-              <p>Welcome to VoiceMed Pro! Your account has been created successfully.</p>
+              <p>Welcome to HospynAi! Your account has been created successfully.</p>
               <p>Please verify your email using the OTP code we sent in a separate email.</p>
-              <p>Best regards,<br>The VoiceMed Pro Team</p>
+              <p>Best regards,<br>The HospynAi Team</p>
             </div>
             <div class="footer">
-              <p>© 2025 VoiceMed Pro. All rights reserved.</p>
+              <p>© 2025 HospynAi. All rights reserved.</p>
             </div>
           </div>
         </body>
       </html>
     `;
-        await this.sendMail(to, 'Welcome to VoiceMed Pro!', html);
+        await this.sendMail(to, 'Welcome to HospynAi!', html);
     }
     async sendPasswordChangeNotification(to, firstName) {
         const html = `
