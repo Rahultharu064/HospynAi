@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { config } from '../../../config';
 import { AuthService } from '../services/authService';
 import { TokenService } from '../services/tokenService';
 import { FileService } from '../services/fileService';
@@ -124,7 +125,6 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
+    res.redirect(`${config.frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
   });
 }

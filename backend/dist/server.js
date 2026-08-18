@@ -52,7 +52,12 @@ const startServer = async () => {
         await prisma_1.default.$connect();
         logger_1.default.info('📦 Database connected');
         const server = http_1.default.createServer(app_1.default);
-        exports.io = new socket_io_1.Server(server);
+        exports.io = new socket_io_1.Server(server, {
+            cors: {
+                origin: config_1.config.frontendUrl,
+                credentials: true,
+            },
+        });
         server.listen(config_1.config.port, () => {
             logger_1.default.info(`🚀 Server running on port ${config_1.config.port} [${config_1.config.nodeEnv}]`);
         });

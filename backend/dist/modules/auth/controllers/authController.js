@@ -2,6 +2,7 @@
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
+const config_1 = require("../../../config");
 const authService_1 = require("../services/authService");
 const tokenService_1 = require("../services/tokenService");
 const fileService_1 = require("../services/fileService");
@@ -112,7 +113,6 @@ AuthController.googleCallback = errorMiddleware_1.AsyncHandler.handle(async (req
         httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
         maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
     });
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
+    res.redirect(`${config_1.config.frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
 });
 //# sourceMappingURL=authController.js.map
