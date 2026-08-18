@@ -14,9 +14,6 @@ const notificationLimiter = (0, express_rate_limit_1.rateLimit)({
     message: { success: false, message: 'Too many notification requests' },
 });
 router.use(authMiddleware_1.authenticate);
-// ============================================
-// NOTIFICATION ROUTES
-// ============================================
 // Create notification
 router.post('/', notificationLimiter, (0, validateMiddleware_1.validate)({ body: notificationValidator_1.createNotificationSchema.shape.body }), (0, authMiddleware_1.authorize)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), notificationController_1.NotificationController.create);
 // Bulk send

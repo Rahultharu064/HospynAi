@@ -2,14 +2,14 @@ import { CallOutcome, VoiceInteractionType } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import { config } from '../../../config';
 import { twilioClient } from '../../../integration/twilio/twilioClient';
-import { llmClient } from '../../../integration/ai/aiClient';
+import { gptClient, llmClient, ChatMessage } from '../../../integration/ai/aiClient';
 import { AuditService } from '../../auth/services/auditService';
 import {
   InitiateCallInput, TransferToHumanInput, CallQueryInput,
 } from '../validators/callingValidator';
 import { BadRequestError, NotFoundError } from '../../../utils/errors';
 import {
-  CallResponse, CallListResponse, OutboundCallResponse, CallStats, ActiveCall, CallTranscript,
+  CallResponse, CallListResponse, OutboundCallResponse, CallStats, ActiveCall, CallTranscript, TranscriptSegment,
 } from '../../../types/callingTypes';
 import logger from '../../../utils/logger';
 
@@ -71,43 +71,65 @@ export class CallingService {
 
     if (fallback || !userInput) {
       await prisma.callLog.update({ where: { callSid: CallSid }, data: { outcome: CallOutcome.MISSED, endedAt: new Date() } });
-      return twilioClient.generateEndCallTwiML('I didn\'t hear anything. Please call back when ready. Goodbye!');
+      return twilioClient.generateEndCallTwiML('I didn\'t hear anything. Please call back when ready.');
     }
 
-    const intentResult = await llmClient.classifyIntent(userInput);
-
-    // Emergency routing — highest priority
-    if (intentResult.intent === 'EMERGENCY' || intentResult.urgency === 'emergency') {
+    const intentResult = await gptClient.classifyIntent(userInput);
+    if (intentResult.intent === 'EMERGENCY' || (intentResult.entities as any)?.urgency === 'emergency') {
       return this.handleEmergency(CallSid, userInput);
     }
 
-    const aiResponse = await llmClient.generateResponse(userInput, intentResult.intent, {});
     const callLog = await prisma.callLog.findUnique({ where: { callSid: CallSid } });
+
+    // Build multi-turn context: prior voice turns on this call, plus patient info when known,
+    // so the agent doesn't lose the thread of the conversation between webhook round-trips.
+    const priorTurns = await prisma.voiceLog.findMany({
+      where: { metadata: { path: ['callSid'], equals: CallSid } },
+      orderBy: { createdAt: 'asc' },
+      take: 12,
+    });
+
+    const patient = callLog?.patientId
+      ? await prisma.patient.findUnique({
+          where: { id: callLog.patientId },
+          select: { firstName: true, lastName: true, allergies: true, chronicConditions: true, currentMedications: true },
+        })
+      : null;
+
+    const systemPrompt = patient
+      ? `${llmClient.getSystemPrompt('PATIENT')}\n\nYou are speaking with ${patient.firstName} ${patient.lastName} over the phone. Known context — allergies: ${patient.allergies?.join(', ') || 'none recorded'}; chronic conditions: ${patient.chronicConditions?.join(', ') || 'none recorded'}; current medications: ${patient.currentMedications?.join(', ') || 'none recorded'}. Keep responses short and natural for a voice call — this will be read aloud.`
+      : `${llmClient.getSystemPrompt('PATIENT')}\n\nKeep responses short and natural for a voice call — this will be read aloud.`;
+
+    const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }];
+    for (const turn of priorTurns) {
+      if (turn.transcript) messages.push({ role: 'user', content: turn.transcript });
+      if (turn.aiResponse) messages.push({ role: 'assistant', content: turn.aiResponse });
+    }
+    messages.push({ role: 'user', content: userInput });
+
+    const chatResp = await llmClient.chat(messages, { maxTokens: 300, temperature: 0.6 });
+    const responseText = chatResp.message || "I'm sorry, could you say that again?";
+    const shouldEscalate = intentResult.urgency === 'urgent';
 
     if (callLog) {
       await prisma.voiceLog.create({
         data: {
-          patientId: callLog.patientId,
-          interactionType: (intentResult.interactionType || 'voice') as VoiceInteractionType,
-          transcript: userInput,
-          aiResponse: aiResponse.response,
-          confidence: parseFloat(Confidence || '0.8'),
-          intent: intentResult.intent,
-          metadata: { callSid: CallSid, entities: intentResult.entities, urgency: intentResult.urgency },
+          patientId: callLog.patientId, interactionType: intentResult.interactionType as VoiceInteractionType,
+          transcript: userInput, aiResponse: responseText,
+          confidence: parseFloat(Confidence || '0.8'), intent: intentResult.intent,
+          metadata: { callSid: CallSid, entities: intentResult.entities },
         },
       });
     }
 
-    // Transfer to human if AI confidence is low or escalation required
-    const confidence = parseFloat(Confidence || '0.8');
-    if (aiResponse.action === 'ESCALATE' || confidence < 0.55) {
+    if (shouldEscalate || parseFloat(Confidence || '0.8') < 0.4) {
       return twilioClient.generateTransferTwiML(
         process.env.HUMAN_AGENT_NUMBER || '+1234567890',
-        'Let me connect you with a human agent who can better assist you. Please hold.'
+        'Let me transfer you to a human agent.'
       );
     }
 
-    return twilioClient.generateResponseTwiML(aiResponse.response);
+    return twilioClient.generateResponseTwiML(responseText);
   }
 
   private static async handleEmergency(callSid: string, input: string): Promise<string> {
@@ -118,7 +140,7 @@ export class CallingService {
 
     return twilioClient.generateTransferTwiML(
       process.env.EMERGENCY_NUMBER || '911',
-      'I understand this may be an emergency. Transferring to emergency services now. Please stay on the line.'
+      'I understand this may be an emergency. Transferring to emergency services now.'
     );
   }
 
@@ -148,7 +170,10 @@ export class CallingService {
       updateData.duration = CallDuration ? parseInt(CallDuration) : null;
       updateData.recordingUrl = RecordingUrl || null;
       updateData.outcome = callLog.handoffReason ? CallOutcome.HANDED_OFF : callLog.aiHandled ? CallOutcome.AI_RESOLVED : callLog.outcome;
-    } else if (['no-answer', 'busy', 'failed'].includes(CallStatus)) {
+    } else if (['no-answer', 'busy'].includes(CallStatus)) {
+      updateData.outcome = CallOutcome.MISSED;
+      updateData.endedAt = new Date();
+    } else if (CallStatus === 'failed') {
       updateData.outcome = CallOutcome.MISSED;
       updateData.endedAt = new Date();
     }
@@ -159,17 +184,21 @@ export class CallingService {
 
   static async handleVoicemail(data: any): Promise<void> {
     const { CallSid, RecordingUrl, RecordingDuration, TranscriptionText } = data;
-    logger.info(`Voicemail received for ${CallSid} (${RecordingDuration}s)`);
+
     await prisma.callLog.update({
       where: { callSid: CallSid },
       data: {
-        recordingUrl: RecordingUrl || null,
-        transcript: TranscriptionText || null,
-        outcome: CallOutcome.MISSED,
+        outcome: CallOutcome.VOICEMAIL,
+        recordingUrl: RecordingUrl || undefined,
+        duration: RecordingDuration ? parseInt(RecordingDuration, 10) : undefined,
+        transcript: TranscriptionText || undefined,
         endedAt: new Date(),
-        duration: RecordingDuration ? parseInt(RecordingDuration) : null,
       },
-    }).catch((e) => logger.warn('Voicemail callLog update failed:', e));
+    }).catch((error) => {
+      logger.warn(`Could not update call log for voicemail ${CallSid}:`, error);
+    });
+
+    logger.info(`Voicemail handled for ${CallSid}`);
   }
 
   static async handleTranscription(data: any): Promise<void> {
@@ -208,37 +237,87 @@ export class CallingService {
     const callLog = await prisma.callLog.findUnique({ where: { callSid } });
     if (!callLog) throw new NotFoundError('Call not found');
 
-    const allVoiceLogs = await prisma.voiceLog.findMany({ orderBy: { createdAt: 'asc' } });
-    const voiceLogs = allVoiceLogs.filter((v) => (v.metadata as any)?.callSid === callSid);
+    // Voice logs are stored per-turn with the callSid in their metadata JSON.
+    // Filter at the database level via a JSONB path match instead of scanning the whole table.
+    const voiceLogs = await prisma.voiceLog.findMany({
+      where: { metadata: { path: ['callSid'], equals: callSid } },
+      orderBy: { createdAt: 'asc' },
+    });
 
-    const transcript = voiceLogs.map((v) => v.transcript).filter(Boolean).join('\n') || callLog.transcript || '';
-    return { callSid: callLog.callSid, transcript, segments: [], duration: callLog.duration || 0 };
+    const callStart = callLog.startedAt.getTime();
+    const segments: TranscriptSegment[] = [];
+    for (const v of voiceLogs) {
+      const offsetSec = Math.max(0, Math.round((v.createdAt.getTime() - callStart) / 1000));
+      if (v.transcript) {
+        segments.push({ speaker: 'PATIENT', text: v.transcript, startTime: offsetSec, endTime: offsetSec, confidence: v.confidence ?? 0.8 });
+      }
+      if (v.aiResponse) {
+        segments.push({ speaker: 'AI', text: v.aiResponse, startTime: offsetSec, endTime: offsetSec, confidence: 1 });
+      }
+    }
+
+    const transcript = callLog.transcript || segments.map((s) => `${s.speaker}: ${s.text}`).join('\n');
+
+    return { callSid: callLog.callSid, transcript, segments, duration: callLog.duration || 0 };
   }
 
   static async getCallStats(): Promise<CallStats> {
-    const [totalCalls, inboundCalls, outboundCalls, aiResolved, handedOff, missed] = await Promise.all([
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalCalls, inboundCalls, outboundCalls, aiResolved, handedOff, missed,
+      durationAgg, handoffDurationAgg, outcomeGroups, recentCalls,
+    ] = await Promise.all([
       prisma.callLog.count(),
       prisma.callLog.count({ where: { direction: 'INBOUND' } }),
       prisma.callLog.count({ where: { direction: 'OUTBOUND' } }),
       prisma.callLog.count({ where: { outcome: 'AI_RESOLVED' } }),
       prisma.callLog.count({ where: { outcome: 'HANDED_OFF' } }),
       prisma.callLog.count({ where: { outcome: 'MISSED' } }),
+      prisma.callLog.aggregate({ _avg: { duration: true }, where: { duration: { not: null } } }),
+      prisma.callLog.aggregate({
+        _avg: { duration: true },
+        where: { duration: { not: null }, handoffReason: { not: null } },
+      }),
+      prisma.callLog.groupBy({ by: ['outcome'], _count: { _all: true } }),
+      prisma.callLog.findMany({
+        where: { startedAt: { gte: thirtyDaysAgo } },
+        select: { startedAt: true },
+      }),
     ]);
 
-    // Real average duration from DB instead of hardcoded value
-    const durationAgg = await prisma.callLog.aggregate({
-      _avg: { duration: true },
-      where: { duration: { gt: 0 } },
-    });
-    const averageDuration = Math.round(durationAgg._avg.duration || 0);
+    const hourCounts = new Map<number, number>();
+    const dayCounts = new Map<string, number>();
+    for (const call of recentCalls) {
+      const hour = call.startedAt.getHours();
+      hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1);
+      const day = call.startedAt.toISOString().slice(0, 10);
+      dayCounts.set(day, (dayCounts.get(day) || 0) + 1);
+    }
+
+    const peakHours = Array.from(hourCounts.entries())
+      .map(([hour, count]) => ({ hour, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    const dailyVolume = Array.from(dayCounts.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const outcomes: Record<string, number> = {};
+    for (const group of outcomeGroups) {
+      outcomes[group.outcome] = group._count._all;
+    }
 
     return {
       totalCalls, inboundCalls, outboundCalls, aiResolved, handedOff, missed,
-      averageDuration,
-      aiResolutionRate: totalCalls > 0 ? Math.round((aiResolved / totalCalls) * 1000) / 10 : 0,
-      missedCallRate: totalCalls > 0 ? Math.round((missed / totalCalls) * 1000) / 10 : 0,
-      averageHandoffTime: 0, peakHours: [], dailyVolume: [],
-      outcomes: { aiResolved, handedOff, missed },
+      averageDuration: Math.round(durationAgg._avg.duration || 0),
+      aiResolutionRate: totalCalls > 0 ? (aiResolved / totalCalls) * 100 : 0,
+      missedCallRate: totalCalls > 0 ? (missed / totalCalls) * 100 : 0,
+      // Proxy: average total duration of calls that were handed off to a human
+      // (per-event handoff-latency isn't tracked separately from call duration).
+      averageHandoffTime: Math.round(handoffDurationAgg._avg.duration || 0),
+      peakHours, dailyVolume, outcomes,
     };
   }
 

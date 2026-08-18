@@ -69,6 +69,7 @@ export declare function extractJsonFromLLM(text: string): Record<string, any>;
  */
 export declare class LLMClient {
     private client;
+    private fallbackClient;
     private defaultModel;
     private configured;
     constructor();

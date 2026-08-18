@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { UserRole } from '../models/user.model';
 
 export interface NavItem {
@@ -23,8 +23,19 @@ export const NAV_ITEMS: NavItem[] = [
 
 @Injectable({ providedIn: 'root' })
 export class NavService {
+  /** Whether the off-canvas sidebar drawer is open on mobile/tablet widths. */
+  readonly mobileSidebarOpen = signal(false);
+
   itemsForRole(role: UserRole | null): NavItem[] {
     if (!role) return [];
     return NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(role));
+  }
+
+  toggleMobileSidebar(): void {
+    this.mobileSidebarOpen.update((open) => !open);
+  }
+
+  closeMobileSidebar(): void {
+    this.mobileSidebarOpen.set(false);
   }
 }

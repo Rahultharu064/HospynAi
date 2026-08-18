@@ -20,12 +20,21 @@ export class CountUpDirective implements AfterViewInit, OnDestroy {
   @Input() countPrefix = '';
   @Input() countDurationMs = 1400;
   @Input() countDecimals = 0;
+  /** Adds locale thousands separators (e.g. 12,345) — on by default since most counted values are large. */
+  @Input() countGroupSeparators = true;
+
+  private format(value: number): string {
+    const formatted = this.countGroupSeparators
+      ? value.toLocaleString(undefined, { minimumFractionDigits: this.countDecimals, maximumFractionDigits: this.countDecimals })
+      : value.toFixed(this.countDecimals);
+    return `${this.countPrefix}${formatted}${this.countSuffix}`;
+  }
 
   ngAfterViewInit(): void {
     const node = this.el.nativeElement;
 
     if (prefersReducedMotion() || typeof IntersectionObserver === 'undefined') {
-      node.textContent = `${this.countPrefix}${this.countTo}${this.countSuffix}`;
+      node.textContent = this.format(this.countTo);
       return;
     }
 
@@ -51,7 +60,7 @@ export class CountUpDirective implements AfterViewInit, OnDestroy {
     const step = (now: number) => {
       const progress = Math.min((now - start) / this.countDurationMs, 1);
       const value = this.countTo * easeOutQuint(progress);
-      node.textContent = `${this.countPrefix}${value.toFixed(this.countDecimals)}${this.countSuffix}`;
+      node.textContent = this.format(value);
       if (progress < 1) {
         this.frame = requestAnimationFrame(step);
       }

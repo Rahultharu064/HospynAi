@@ -2,13 +2,23 @@ import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
+import { NavService } from '../../core/services/nav.service';
 
 @Component({
     selector: 'app-topbar',
     imports: [RouterLink],
     template: `
-    <header class="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
-      <div></div>
+    <header class="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6">
+      <button
+        type="button"
+        class="btn-ghost !px-2 lg:hidden"
+        (click)="navService.toggleMobileSidebar()"
+        aria-label="Toggle navigation menu"
+        [attr.aria-expanded]="navService.mobileSidebarOpen()"
+      >
+        <span class="text-lg" aria-hidden="true">☰</span>
+      </button>
+      <div class="hidden lg:block"></div>
 
       <div class="relative flex items-center gap-3">
         <button
@@ -45,6 +55,7 @@ import { ToastService } from '../../core/services/toast.service';
 export class TopbarComponent {
   private authService = inject(AuthService);
   private toast = inject(ToastService);
+  navService = inject(NavService);
   router = inject(Router);
 
   menuOpen = signal(false);

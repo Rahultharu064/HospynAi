@@ -18,7 +18,7 @@ AiController.agentChat = errorMiddleware_1.AsyncHandler.handle(async (req, res) 
     const userId = req.user?.userId;
     if (!userId)
         throw new errors_1.UnauthorizedError();
-    const result = await aiagentService_1.AgentService.chat(dto, userId);
+    const result = await aiagentService_1.AgentService.chat(dto, userId, req.user?.role);
     res.status(200).json({ success: true, status: 200, data: result });
 });
 AiController.agentTask = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
@@ -26,7 +26,7 @@ AiController.agentTask = errorMiddleware_1.AsyncHandler.handle(async (req, res) 
     const userId = req.user?.userId;
     if (!userId)
         throw new errors_1.UnauthorizedError();
-    const result = await aiagentService_1.AgentService.executeTask(dto, userId);
+    const result = await aiagentService_1.AgentService.executeTask(dto, userId, req.user?.role);
     res.status(200).json({ success: true, status: 200, data: result });
 });
 AiController.executeTool = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
@@ -34,7 +34,7 @@ AiController.executeTool = errorMiddleware_1.AsyncHandler.handle(async (req, res
     const userId = req.user?.userId;
     if (!userId)
         throw new errors_1.UnauthorizedError();
-    const result = await aiagentService_1.AgentService.executeToolCall(dto, userId);
+    const result = await aiagentService_1.AgentService.executeToolCall(dto, userId, req.user?.role);
     res.status(200).json({ success: true, status: 200, data: result });
 });
 AiController.agentHistory = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {

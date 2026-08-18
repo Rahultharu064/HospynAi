@@ -1,14 +1,17 @@
 import { v4 as uuidv4 } from 'uuid';
+import { UserRole } from '@prisma/client';
 import prisma from '../../../config/prisma';
-import { llmClient, extractJsonFromLLM } from '../../../integration/ai/aiClient';
+import { llmClient, ChatMessage, ChatFunction, extractJsonFromLLM } from '../../../integration/ai/aiClient';
 import { vectorlessRagClient } from '../../../integration/ai/vectorlessRagClient';
-import { AuditService } from '../../auth/services/auditService';
+import { AppointmentService } from '../../appoinment/services/appointmentService';
+import { PatientService } from '../../patient/services/patientService';
+import { NotificationService } from '../../notifications/services/notificationService';
+import { PrescriptionService } from '../../emr/services/prescriptionService';
 import {
   AgentChatInput,
   AgentTaskInput,
   AgentQueryInput,
 } from '../validators/aiagentValidators';
-import { NotFoundError } from '../../../utils/errors';
 import {
   AgentChatResponse,
   AgentTaskResponse,
@@ -17,73 +20,102 @@ import {
 } from '../../../types/aiagentTypes';
 import logger from '../../../utils/logger';
 
-// Tool definitions for the agent
-const AVAILABLE_TOOLS = [
+// Tool schema handed to the LLM for real function-calling — the model decides which
+// tool(s) to invoke and with what arguments based on the conversation, instead of
+// keyword-matching the user's message.
+const TOOL_SCHEMAS: ChatFunction[] = [
   {
     name: 'schedule_appointment',
-    description: 'Schedule a new appointment for a patient',
+    description:
+      "Book a medical appointment, or list a doctor's open time slots on a date when no specific time has been chosen yet. Call with just patientId/doctorId/date to see availability first.",
     parameters: {
-      patientId: 'string',
-      doctorId: 'string',
-      date: 'string (YYYY-MM-DD)',
-      time: 'string (HH:mm)',
-      type: 'IN_PERSON | TELEMEDICINE',
-      reason: 'string',
+      type: 'object',
+      properties: {
+        patientId: { type: 'string', description: 'Patient ID (cuid)' },
+        doctorId: { type: 'string', description: 'Doctor ID (cuid)' },
+        date: { type: 'string', description: 'Date in YYYY-MM-DD format' },
+        time: { type: 'string', description: 'Start time in HH:mm 24-hour format. Omit to only list available slots.' },
+        reason: { type: 'string', description: 'Reason for the visit' },
+      },
+      required: ['patientId', 'doctorId', 'date'],
     },
   },
   {
     name: 'search_patient_records',
-    description: 'Search patient medical records',
+    description: "Look up a patient's core medical record: demographics, allergies, chronic conditions, current medications.",
     parameters: {
-      patientId: 'string',
-      query: 'string',
+      type: 'object',
+      properties: { patientId: { type: 'string', description: 'Patient ID (cuid)' } },
+      required: ['patientId'],
     },
   },
   {
     name: 'check_drug_interactions',
-    description: 'Check for drug interactions',
+    description:
+      "AI-assisted screen for potential interactions between a proposed drug and the patient's current medications. Advisory only — always recommend pharmacist/physician verification before dispensing.",
     parameters: {
-      drugName: 'string',
-      patientId: 'string',
+      type: 'object',
+      properties: {
+        drugName: { type: 'string', description: 'Drug being considered' },
+        patientId: { type: 'string', description: 'Patient ID (cuid), used to pull current medications for comparison' },
+      },
+      required: ['drugName', 'patientId'],
     },
   },
   {
     name: 'analyze_symptoms',
-    description: 'Analyze patient symptoms',
+    description: 'Analyze reported symptoms and produce a triage recommendation (routine / urgent / emergency) with follow-up questions.',
     parameters: {
-      symptoms: 'string[]',
-      patientId: 'string',
+      type: 'object',
+      properties: {
+        symptoms: { type: 'array', items: { type: 'string' }, description: 'List of reported symptoms' },
+      },
+      required: ['symptoms'],
     },
   },
   {
     name: 'generate_prescription',
-    description: 'Generate a prescription',
+    description:
+      'Draft a prescription recommendation for physician review. This never dispenses medication on its own — a licensed doctor must confirm it before it becomes an active prescription.',
     parameters: {
-      patientId: 'string',
-      drugName: 'string',
-      dosage: 'string',
-      frequency: 'string',
-      duration: 'string',
+      type: 'object',
+      properties: {
+        patientId: { type: 'string', description: 'Patient ID (cuid)' },
+        drugName: { type: 'string' },
+        dosage: { type: 'string' },
+        frequency: { type: 'string' },
+        duration: { type: 'string' },
+      },
+      required: ['patientId', 'drugName', 'dosage', 'frequency', 'duration'],
     },
   },
   {
     name: 'query_knowledge_base',
-    description: 'Query the medical knowledge base',
+    description: 'Search the medical knowledge base (policies, guides, FAQs) for grounded information to cite in the answer.',
     parameters: {
-      query: 'string',
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
     },
   },
   {
     name: 'send_notification',
-    description: 'Send notification to a user',
+    description: 'Send a notification (email, SMS, or push) to a user — e.g. an appointment confirmation or a reminder.',
     parameters: {
-      userId: 'string',
-      title: 'string',
-      message: 'string',
-      channel: 'EMAIL | SMS | PUSH',
+      type: 'object',
+      properties: {
+        userId: { type: 'string', description: 'Recipient user ID (cuid)' },
+        title: { type: 'string' },
+        message: { type: 'string' },
+        channel: { type: 'string', enum: ['EMAIL', 'SMS', 'PUSH', 'VOICE_CALL'] },
+      },
+      required: ['userId', 'title', 'message'],
     },
   },
 ];
+
+const MAX_TOOL_ROUNDS = 3;
+const MAX_HISTORY_TURNS = 10;
 
 export class AgentService {
   /**
@@ -93,7 +125,8 @@ export class AgentService {
    */
   static async chat(
     data: AgentChatInput,
-    userId: string
+    userId: string,
+    userRole?: UserRole
   ): Promise<AgentChatResponse> {
     const startTime = Date.now();
     const sessionId = data.sessionId || uuidv4();
@@ -114,124 +147,173 @@ export class AgentService {
       }
     }
 
-    // Load recent conversation history for context continuity
-    const recentHistory = await prisma.conversationHistory.findMany({
-      where: { userId, sessionId },
-      orderBy: { createdAt: 'asc' },
-      take: 6,
-      select: { role: true, content: true },
-    });
-
     // Retrieve relevant memories
     const memories = await this.retrieveMemories(data.patientId, userId, data.message);
 
-    // Determine which tools to use based on the message
-    const toolPlan = await this.planTools(data.message, patientContext);
+    // Load prior turns for this session so the agent has real conversation memory
+    const priorTurns = await prisma.conversationHistory.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'desc' },
+      take: MAX_HISTORY_TURNS,
+    });
+    priorTurns.reverse();
 
-    // Execute tools
-    const actions = [];
-    const toolsUsed: string[] = [];
-    for (const tool of toolPlan.tools) {
-      try {
-        const result = await this.executeTool(tool.name, tool.parameters);
-        actions.push({
-          action: tool.name,
-          description: tool.description,
-          tool: tool.name,
-          parameters: tool.parameters,
-          result,
-          status: 'completed' as const,
-        });
-        toolsUsed.push(tool.name);
-      } catch (error: any) {
-        actions.push({
-          action: tool.name,
-          description: tool.description,
-          tool: tool.name,
-          parameters: tool.parameters,
-          result: null,
-          status: 'failed' as const,
-        });
-      }
+    const systemPrompt = this.buildSystemPrompt(patientContext, memories);
+    const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }];
+    for (const turn of priorTurns) {
+      messages.push({ role: turn.role === 'ASSISTANT' ? 'assistant' : 'user', content: turn.content });
     }
+    messages.push({ role: 'user', content: data.message });
 
-    // Generate final response with conversation history injected
-    const historyMessages = recentHistory.map((h) => ({
-      role: h.role === 'USER' ? 'user' as const : 'assistant' as const,
-      content: h.content,
-    }));
-    const contextSummary = [
-      ...memories.map((m: any) => `[Memory] ${m.content}`),
-      ...actions.filter((a) => a.status === 'completed').map((a) =>
-        `[Tool: ${a.tool}] ${JSON.stringify(a.result).slice(0, 300)}`
-      ),
-    ].join('\n');
-    const systemExtra = contextSummary
-      ? `\n\nRelevant context:\n${contextSummary}`
-      : '';
-    const messages = [
-      { role: 'system' as const, content: llmClient.getSystemPrompt('GENERAL') + systemExtra },
-      ...historyMessages,
-      { role: 'user' as const, content: data.message },
-    ];
-    const chatResp = await llmClient.chat(messages, { maxTokens: 1500, temperature: 0.7 });
-    const response = {
-      response: chatResp.message,
-      tokensUsed: chatResp.usage.totalTokens,
-      action: chatResp.message.toLowerCase().includes('emergency') ? 'ESCALATE' : null,
-      data: chatResp.functionCall?.arguments || null,
-      suggestedActions: [] as any[],
-    };
+    const { finalMessage, actions, toolsUsed, tokensUsed, lastToolResult } = await this.runToolLoop(
+      messages,
+      userId,
+      userRole
+    );
+
+    const suggestedActions = this.buildSuggestedActions(toolsUsed, lastToolResult);
 
     // Save to conversation history
     await prisma.conversationHistory.create({
-      data: {
-        userId,
-        patientId: data.patientId || null,
-        sessionId,
-        role: 'USER',
-        content: data.message,
-      },
+      data: { userId, patientId: data.patientId || null, sessionId, role: 'USER', content: data.message },
     });
 
     await prisma.conversationHistory.create({
       data: {
-        userId,
-        patientId: data.patientId || null,
-        sessionId,
-        role: 'ASSISTANT',
-        content: response.response,
-        metadata: { actions, toolsUsed },
+        userId, patientId: data.patientId || null, sessionId, role: 'ASSISTANT',
+        content: finalMessage, metadata: { actions, toolsUsed },
       },
     });
 
     // Log agent activity
     await prisma.agentLog.create({
       data: {
-        userId,
-        sessionId,
-        taskType: 'CHAT',
+        userId, sessionId, taskType: 'CHAT',
         input: { message: data.message, context: patientContext },
-        output: { response: response.response, actions },
-        toolCalls: actions,
-        status: 'COMPLETED',
-        duration: Date.now() - startTime,
-        tokensUsed: response.tokensUsed || 0,
+        output: { response: finalMessage, actions },
+        toolCalls: actions, status: 'COMPLETED',
+        duration: Date.now() - startTime, tokensUsed,
       },
     });
 
     return {
       sessionId,
-      message: response.response,
+      message: finalMessage,
       reasoning: null,
       actions,
       toolsUsed,
-      data: response.data,
+      data: lastToolResult,
       confidence: 0.9,
-      suggestedActions: response.suggestedActions || [],
-      tokensUsed: response.tokensUsed || 0,
+      suggestedActions,
+      tokensUsed,
       responseTime: Date.now() - startTime,
     };
+  }
+
+  private static buildSystemPrompt(context: Record<string, any>, memories: any[]): string {
+    const base = llmClient.getSystemPrompt('GENERAL');
+    const parts = [base];
+
+    if (context.patient) {
+      parts.push(
+        `Current patient context: ${context.patient.firstName} ${context.patient.lastName}, ` +
+        `allergies: ${(context.patient.allergies || []).join(', ') || 'none recorded'}, ` +
+        `chronic conditions: ${(context.patient.chronicConditions || []).join(', ') || 'none recorded'}, ` +
+        `current medications: ${(context.patient.currentMedications || []).join(', ') || 'none recorded'}.`
+      );
+    }
+
+    if (memories.length > 0) {
+      parts.push(`Relevant prior context:\n${memories.map((m) => `- ${m.content}`).join('\n')}`);
+    }
+
+    parts.push(
+      'You have access to tools for scheduling appointments, looking up patient records, ' +
+      'checking drug interactions, analyzing symptoms, drafting prescriptions, searching the knowledge base, ' +
+      'and sending notifications. Use them when the user asks for something actionable rather than just describing what you would do.'
+    );
+
+    return parts.join('\n\n');
+  }
+
+  /**
+   * Runs the OpenAI/Groq-style tool-calling loop: ask the model, execute any requested
+   * tool, feed the result back, and repeat until the model returns a final answer or the
+   * round cap is hit.
+   */
+  private static async runToolLoop(
+    messages: ChatMessage[],
+    userId: string,
+    userRole?: UserRole
+  ): Promise<{
+    finalMessage: string;
+    actions: any[];
+    toolsUsed: string[];
+    tokensUsed: number;
+    lastToolResult: any;
+  }> {
+    const actions: any[] = [];
+    const toolsUsed: string[] = [];
+    let tokensUsed = 0;
+    let lastToolResult: any = null;
+    const working = [...messages];
+
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const response = await llmClient.chat(working, { functions: TOOL_SCHEMAS, maxTokens: 1200, temperature: 0.5 });
+      tokensUsed += response.usage.totalTokens;
+
+      if (!response.functionCall) {
+        return { finalMessage: response.message, actions, toolsUsed, tokensUsed, lastToolResult };
+      }
+
+      const { name, arguments: args } = response.functionCall;
+      let result: any;
+      let status: 'completed' | 'failed' = 'completed';
+      try {
+        result = await this.executeTool(name, args, userId, userRole);
+        lastToolResult = result;
+      } catch (error: any) {
+        result = { error: error.message || 'Tool execution failed' };
+        status = 'failed';
+      }
+
+      toolsUsed.push(name);
+      actions.push({
+        action: name, description: TOOL_SCHEMAS.find((t) => t.name === name)?.description || name,
+        tool: name, parameters: args, result, status,
+      });
+
+      working.push({ role: 'assistant', content: response.message || null, tool_calls: [{
+        id: response.functionCall.id, type: 'function',
+        function: { name, arguments: JSON.stringify(args) },
+      }] });
+      working.push({
+        role: 'tool', content: JSON.stringify(result).slice(0, 4000),
+        tool_call_id: response.functionCall.id,
+      });
+    }
+
+    // Round cap hit — ask once more for a final summary without tool access.
+    const wrapUp = await llmClient.chat(working, { maxTokens: 600, temperature: 0.5 });
+    tokensUsed += wrapUp.usage.totalTokens;
+    return { finalMessage: wrapUp.message, actions, toolsUsed, tokensUsed, lastToolResult };
+  }
+
+  private static buildSuggestedActions(toolsUsed: string[], lastToolResult: any): SuggestedAction[] {
+    const suggestions: SuggestedAction[] = [];
+    if (toolsUsed.includes('schedule_appointment') && lastToolResult?.slots) {
+      suggestions.push({
+        action: 'CONFIRM_APPOINTMENT', label: 'Pick a time slot',
+        description: 'Choose one of the available slots to confirm the booking.',
+      });
+    }
+    if (toolsUsed.includes('generate_prescription') && lastToolResult?.requiresPhysicianApproval) {
+      suggestions.push({
+        action: 'REVIEW_PRESCRIPTION', label: 'Review draft prescription',
+        description: 'A licensed doctor must review and confirm this draft before it becomes active.',
+      });
+    }
+    return suggestions;
   }
 
   /**
@@ -241,30 +323,24 @@ export class AgentService {
    */
   static async executeTask(
     data: AgentTaskInput,
-    userId: string
+    userId: string,
+    userRole?: UserRole
   ): Promise<AgentTaskResponse> {
     const taskId = uuidv4();
     const startTime = Date.now();
 
     // Create agent log
     await prisma.agentLog.create({
-      data: {
-        userId,
-        sessionId: taskId,
-        taskType: data.taskType,
-        input: data.parameters,
-        status: 'STARTED',
-      },
+      data: { userId, sessionId: taskId, taskType: data.taskType, input: data.parameters, status: 'STARTED' },
     });
 
-    // Execute task based on type
     const steps: any[] = [];
     let result: any = null;
 
     try {
       switch (data.taskType) {
         case 'SCHEDULE_APPOINTMENT':
-          result = await this.scheduleAppointmentTask(data.parameters, steps);
+          result = await this.scheduleAppointmentTask(data.parameters, userId, steps);
           break;
         case 'ANALYZE_SYMPTOMS':
           result = await this.analyzeSymptomsTask(data.parameters, steps);
@@ -275,50 +351,36 @@ export class AgentService {
         case 'SUMMARIZE_RECORDS':
           result = await this.summarizeRecordsTask(data.parameters, steps);
           break;
+        case 'CREATE_PRESCRIPTION':
+          result = await this.executeTool('generate_prescription', data.parameters, userId, userRole);
+          steps.push({ step: 1, action: 'DRAFT_PRESCRIPTION', tool: 'prescription_service', input: data.parameters, output: result, status: 'completed', duration: 0 });
+          break;
+        case 'SEND_NOTIFICATION':
+          result = await this.executeTool('send_notification', data.parameters, userId, userRole);
+          steps.push({ step: 1, action: 'SEND_NOTIFICATION', tool: 'notification_service', input: data.parameters, output: result, status: 'completed', duration: 0 });
+          break;
         default:
-          result = { message: 'Task type not implemented' };
+          result = { message: `Task type ${data.taskType} is not yet automated — route to a human.` };
       }
 
-      // Update log
       await prisma.agentLog.updateMany({
         where: { sessionId: taskId },
-        data: {
-          status: 'COMPLETED',
-          output: result,
-          toolCalls: steps,
-          duration: Date.now() - startTime,
-        },
+        data: { status: 'COMPLETED', output: result, toolCalls: steps, duration: Date.now() - startTime },
       });
 
       return {
-        taskId,
-        status: 'COMPLETED',
-        progress: 100,
-        steps,
-        result,
-        error: null,
-        startedAt: new Date(startTime).toISOString(),
-        completedAt: new Date().toISOString(),
+        taskId, status: 'COMPLETED', progress: 100, steps, result, error: null,
+        startedAt: new Date(startTime).toISOString(), completedAt: new Date().toISOString(),
       };
     } catch (error: any) {
       await prisma.agentLog.updateMany({
         where: { sessionId: taskId },
-        data: {
-          status: 'FAILED',
-          errorMessage: error.message,
-          duration: Date.now() - startTime,
-        },
+        data: { status: 'FAILED', errorMessage: error.message, duration: Date.now() - startTime },
       });
 
       return {
-        taskId,
-        status: 'FAILED',
-        progress: 0,
-        steps,
-        result: null,
-        error: error.message,
-        startedAt: new Date(startTime).toISOString(),
-        completedAt: new Date().toISOString(),
+        taskId, status: 'FAILED', progress: 0, steps, result: null, error: error.message,
+        startedAt: new Date(startTime).toISOString(), completedAt: new Date().toISOString(),
       };
     }
   }
@@ -330,128 +392,76 @@ export class AgentService {
    */
   static async executeToolCall(
     data: { toolName: string; parameters: Record<string, any> },
-    userId: string
+    userId: string,
+    userRole?: UserRole
   ): Promise<any> {
-    return this.executeTool(data.toolName, data.parameters);
+    return this.executeTool(data.toolName, data.parameters, userId, userRole);
   }
 
   // ============================================
-  // TASK IMPLEMENTATIONS
+  // TASK IMPLEMENTATIONS (delegate to the same real tool executors as chat)
   // ============================================
 
-  private static async scheduleAppointmentTask(params: any, steps: any[]): Promise<any> {
-    const t0 = Date.now();
-    const patient = await prisma.patient.findUnique({ where: { id: params.patientId } });
-    steps.push({ step: 1, action: 'VALIDATE_PATIENT', tool: 'database',
-      input: { patientId: params.patientId },
-      output: patient ? `Found: ${patient.firstName} ${patient.lastName}` : 'Not found',
-      status: patient ? 'completed' : 'failed', duration: Date.now() - t0 });
-    if (!patient) return { success: false, message: 'Patient not found' };
-
-    const t1 = Date.now();
-    // Check for available appointment slots for the requested doctor/date
-    const existingAppts = await prisma.appointment.count({
-      where: { doctorId: params.doctorId, appointmentDate: params.date ? new Date(params.date) : undefined },
+  private static async scheduleAppointmentTask(params: any, userId: string, steps: any[]): Promise<any> {
+    const result = await this.executeTool('schedule_appointment', params, userId);
+    steps.push({
+      step: 1, action: params.time ? 'BOOK_APPOINTMENT' : 'CHECK_AVAILABILITY', tool: 'appointment_service',
+      input: params, output: result, status: 'completed', duration: 0,
     });
-    steps.push({ step: 2, action: 'CHECK_AVAILABILITY', tool: 'appointment_db',
-      input: { doctorId: params.doctorId, date: params.date },
-      output: `${existingAppts} existing appointments on requested date`,
-      status: 'completed', duration: Date.now() - t1 });
-
-    return { success: true, message: 'Availability checked — confirm to finalize booking',
-      patientName: `${patient.firstName} ${patient.lastName}`, existingAppointments: existingAppts };
+    return result;
   }
 
   private static async analyzeSymptomsTask(params: any, steps: any[]): Promise<any> {
     const analysis = await llmClient.analyzeSymptoms(params.symptoms || []);
-    
-    steps.push({
-      step: 1, action: 'ANALYZE_SYMPTOMS', tool: 'gpt4',
-      input: params, output: analysis, status: 'completed', duration: 2000,
-    });
-
+    steps.push({ step: 1, action: 'ANALYZE_SYMPTOMS', tool: 'llm', input: params, output: analysis, status: 'completed', duration: 0 });
     return analysis;
   }
 
   private static async checkDrugInteractionsTask(params: any, steps: any[]): Promise<any> {
-    steps.push({
-      step: 1, action: 'CHECK_INTERACTIONS', tool: 'drug_database',
-      input: params, output: 'No interactions found', status: 'completed', duration: 500,
-    });
-
-    return {
-      hasInteractions: false,
-      interactions: [],
-      severity: 'none',
-    };
+    const result = await this.executeTool('check_drug_interactions', params, '');
+    steps.push({ step: 1, action: 'CHECK_INTERACTIONS', tool: 'llm', input: params, output: result, status: 'completed', duration: 0 });
+    return result;
   }
 
   private static async summarizeRecordsTask(params: any, steps: any[]): Promise<any> {
-    const t0 = Date.now();
-    const patient = await prisma.patient.findUnique({ where: { id: params.patientId } });
-    if (!patient) return { summary: 'Patient not found', keyFindings: [], recommendations: [] };
-
-    const records = await prisma.medicalRecord.findMany({
-      where: { patientId: params.patientId },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
-    steps.push({ step: 1, action: 'FETCH_RECORDS', tool: 'database',
-      input: { patientId: params.patientId }, output: `${records.length} records found`,
-      status: 'completed', duration: Date.now() - t0 });
-
-    const t1 = Date.now();
-    const summary = await llmClient.generateMedicalSummary(patient, records);
-    steps.push({ step: 2, action: 'GENERATE_SUMMARY', tool: 'llm',
-      input: { recordCount: records.length }, output: 'Summary generated',
-      status: 'completed', duration: Date.now() - t1 });
-
-    return { summary, keyFindings: records.map((r: any) => r.diagnosis).filter(Boolean), recommendations: [] };
-  }
-
-  // ============================================
-  // TOOL PLANNING & EXECUTION
-  // ============================================
-
-  private static async planTools(message: string, context: any): Promise<{
-    tools: Array<{ name: string; description: string; parameters: any }>;
-  }> {
-    const toolList = AVAILABLE_TOOLS.map(
-      (t) => `- ${t.name}: ${t.description}`
-    ).join('\n');
-
-    const prompt = `You are a medical AI orchestrator. Given the user message and patient context, select which tools (if any) to call.
-
-Available tools:
-${toolList}
-
-Patient context: ${JSON.stringify(context?.patient || {})}
-User message: "${message}"
-
-Respond with JSON only:
-{
-  "tools": [
-    { "name": "tool_name", "description": "why using this tool", "parameters": { "key": "value" } }
-  ]
-}
-
-Rules:
-- Only include tools that are clearly needed
-- Extract parameter values from the message and context
-- Return empty tools array if no tools needed
-- patientId should be the patient's id from context if available`;
-
-    try {
-      const raw = await llmClient.complete(prompt, { temperature: 0.1, maxTokens: 500 });
-      const parsed = extractJsonFromLLM(raw);
-      return { tools: Array.isArray(parsed.tools) ? parsed.tools : [] };
-    } catch (err) {
-      logger.warn('Tool planning LLM call failed, using empty plan:', err);
-      return { tools: [] };
+    if (!params.patientId) {
+      return { summary: 'No patient specified.', keyFindings: [], recommendations: [] };
     }
+
+    const [patient, records, prescriptions] = await Promise.all([
+      prisma.patient.findUnique({ where: { id: params.patientId } }),
+      prisma.medicalRecord.findMany({ where: { patientId: params.patientId }, orderBy: { createdAt: 'desc' }, take: 10 }),
+      prisma.prescription.findMany({ where: { patientId: params.patientId, status: 'ACTIVE' } }),
+    ]);
+    steps.push({ step: 1, action: 'FETCH_RECORDS', tool: 'database', input: params, output: `${records.length} records found`, status: 'completed', duration: 0 });
+
+    if (!patient) return { summary: 'Patient not found.', keyFindings: [], recommendations: [] };
+
+    const summary = await llmClient.generateMedicalSummary(patient, records);
+    steps.push({ step: 2, action: 'SUMMARIZE', tool: 'llm', input: { recordCount: records.length }, output: 'Summary generated', status: 'completed', duration: 0 });
+
+    return {
+      summary,
+      keyFindings: [
+        patient.chronicConditions?.length ? `Chronic conditions: ${patient.chronicConditions.join(', ')}` : null,
+        patient.allergies?.length ? `Allergies: ${patient.allergies.join(', ')}` : null,
+      ].filter(Boolean),
+      recommendations: prescriptions.length > 0
+        ? [`Review ${prescriptions.length} active prescription(s) for renewal or interaction risk.`]
+        : [],
+    };
   }
 
-  private static async executeTool(toolName: string, parameters: any): Promise<any> {
+  // ============================================
+  // REAL TOOL EXECUTORS
+  // ============================================
+
+  private static async executeTool(
+    toolName: string,
+    parameters: Record<string, any>,
+    userId: string,
+    userRole?: UserRole
+  ): Promise<any> {
     switch (toolName) {
       case 'query_knowledge_base': {
         const results = await vectorlessRagClient.search(parameters.query || '', 5);
@@ -460,54 +470,146 @@ Rules:
           context: vectorlessRagClient.buildContext(results),
         };
       }
+
       case 'search_patient_records': {
-        if (!parameters.patientId) return { records: [] };
-        const records = await prisma.medicalRecord.findMany({
-          where: { patientId: parameters.patientId },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-          select: { id: true, recordType: true, diagnosis: true, createdAt: true },
-        });
-        return { records };
-      }
-      case 'analyze_symptoms': {
-        if (!parameters.symptoms?.length && !parameters.patientId) {
-          return { triage: 'routine', recommendation: 'Please describe your symptoms.' };
+        if (!parameters.patientId) return { error: 'patientId is required' };
+        try {
+          const [patient, recentRecords] = await Promise.all([
+            PatientService.getPatientById(parameters.patientId),
+            prisma.medicalRecord.findMany({
+              where: { patientId: parameters.patientId },
+              orderBy: { createdAt: 'desc' },
+              take: 5,
+              select: { id: true, status: true, chiefComplaint: true, diagnosis: true, createdAt: true },
+            }),
+          ]);
+          return { patient, recentRecords };
+        } catch {
+          return { error: 'Patient not found' };
         }
-        const symptoms = Array.isArray(parameters.symptoms)
-          ? parameters.symptoms
-          : [String(parameters.symptoms || '')];
+      }
+
+      case 'analyze_symptoms': {
+        const symptoms: string[] = Array.isArray(parameters.symptoms) ? parameters.symptoms : [];
+        if (symptoms.length === 0) return { error: 'At least one symptom is required' };
         return llmClient.analyzeSymptoms(symptoms);
       }
+
       case 'check_drug_interactions': {
-        if (!parameters.drugName) return { hasInteractions: false, interactions: [] };
-        let currentMeds: string[] = [];
+        if (!parameters.drugName) return { error: 'drugName is required' };
+
+        let currentMedications: string[] = [];
         if (parameters.patientId) {
           const patient = await prisma.patient.findUnique({
             where: { id: parameters.patientId },
             select: { currentMedications: true },
           });
-          currentMeds = (patient?.currentMedications as string[]) || [];
+          currentMedications = patient?.currentMedications || [];
         }
-        const prompt = `Check drug interactions between "${parameters.drugName}" and current medications: ${currentMeds.join(', ') || 'none listed'}.
-Respond JSON: { "hasInteractions": bool, "interactions": [{ "drug": "name", "severity": "mild|moderate|severe", "description": "..." }], "recommendation": "..." }`;
-        const raw = await llmClient.complete(prompt, { temperature: 0.1, maxTokens: 400 });
-        return extractJsonFromLLM(raw);
+
+        if (currentMedications.length === 0) {
+          return {
+            hasInteractions: false,
+            interactions: [],
+            disclaimer: 'No current medications on file to compare against. This is not a substitute for pharmacist review.',
+          };
+        }
+
+        const prompt = `A clinician is considering prescribing "${parameters.drugName}" for a patient currently taking: ${currentMedications.join(', ')}.
+List any clinically significant interactions.
+
+Respond with JSON only:
+{
+  "hasInteractions": true,
+  "interactions": [{ "withDrug": "string", "severity": "minor | moderate | major", "description": "string" }],
+  "disclaimer": "AI-assisted screen — verify with a pharmacist or drug interaction database before prescribing."
+}`;
+
+        try {
+          const response = await llmClient.complete(prompt, { temperature: 0.1, maxTokens: 500, systemPrompt: llmClient.getSystemPrompt('DOCTOR') });
+          return extractJsonFromLLM(response);
+        } catch (error) {
+          logger.warn('Drug interaction check failed:', error);
+          return {
+            hasInteractions: null,
+            interactions: [],
+            disclaimer: 'Automated check unavailable — verify manually with a pharmacist before prescribing.',
+          };
+        }
       }
+
       case 'schedule_appointment': {
-        // Return a structured scheduling prompt — actual creation requires confirm flow
-        return {
-          canSchedule: true,
-          message: 'Appointment scheduling initiated. Please confirm date and time.',
-          parameters,
+        const { patientId, doctorId, date, time, reason } = parameters;
+        if (!patientId || !doctorId || !date) {
+          return { error: 'patientId, doctorId, and date are required' };
+        }
+
+        if (!time) {
+          const availability = await AppointmentService.getAvailableSlots(doctorId, date);
+          return { slots: availability.slots.filter((s) => s.isAvailable), date };
+        }
+
+        if (!userId) return { error: 'A user context is required to book an appointment' };
+
+        try {
+          const appointment = await AppointmentService.createAppointment(
+            { patientId, doctorId, appointmentDate: date, startTime: time, reason: reason || null } as any,
+            userId,
+            '', 'ai-agent'
+          );
+          return { booked: true, appointment };
+        } catch (error: any) {
+          return { booked: false, error: error.message };
+        }
+      }
+
+      case 'generate_prescription': {
+        const { patientId, drugName, dosage, frequency, duration, medicalRecordId } = parameters;
+        if (!patientId || !drugName || !dosage || !frequency || !duration) {
+          return { error: 'patientId, drugName, dosage, frequency, and duration are required' };
+        }
+
+        const draft = {
+          patientId, drugName, dosage, frequency, duration,
+          requiresPhysicianApproval: true,
+          note: 'This is an AI-generated draft. A licensed doctor must review and confirm it before it becomes an active prescription.',
         };
+
+        // Only actually persist the prescription when a doctor is driving the agent
+        // and has supplied the medical record this prescription attaches to.
+        if (userRole === UserRole.DOCTOR && medicalRecordId && userId) {
+          try {
+            const prescription = await PrescriptionService.createPrescription(
+              { medicalRecordId, patientId, drugName, dosage, frequency, duration } as any,
+              userId, '', 'ai-agent'
+            );
+            return { created: true, prescription };
+          } catch (error: any) {
+            return { created: false, error: error.message, draft };
+          }
+        }
+
+        return { created: false, draft };
       }
+
       case 'send_notification': {
-        logger.info(`Agent notification request: ${JSON.stringify(parameters)}`);
-        return { sent: true, channel: parameters.channel };
+        const { userId: targetUserId, title, message, channel } = parameters;
+        if (!targetUserId || !title || !message) {
+          return { error: 'userId, title, and message are required' };
+        }
+        try {
+          const notification = await NotificationService.createNotification(
+            { userId: targetUserId, title, message, type: 'AGENT_MESSAGE', channel: channel || 'EMAIL' } as any,
+            userId || targetUserId
+          );
+          return { sent: true, notification };
+        } catch (error: any) {
+          return { sent: false, error: error.message };
+        }
       }
+
       default:
-        return { executed: true, toolName, parameters };
+        return { error: `Unknown tool: ${toolName}` };
     }
   }
 
@@ -517,15 +619,13 @@ Respond JSON: { "hasInteractions": bool, "interactions": [{ "drug": "name", "sev
     query?: string
   ): Promise<any[]> {
     if (!patientId && !userId) return [];
-    
+
     try {
       const memories = await prisma.aiMemory.findMany({
         where: {
           ...(patientId ? { patientId } : {}),
           ...(userId ? { userId } : {}),
-          ...(query
-            ? { content: { contains: query, mode: 'insensitive' } }
-            : {}),
+          ...(query ? { content: { contains: query, mode: 'insensitive' } } : {}),
         },
         orderBy: { relevanceScore: 'desc' },
         take: 5,
@@ -541,34 +641,22 @@ Respond JSON: { "hasInteractions": bool, "interactions": [{ "drug": "name", "sev
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
+    const where = {
+      ...(query.userId && { userId: query.userId }),
+      ...(query.taskType && { taskType: query.taskType }),
+      ...(query.status && { status: query.status }),
+    };
+
     const [logs, total] = await Promise.all([
-      prisma.agentLog.findMany({
-        where: {
-          ...(query.userId && { userId: query.userId }),
-          ...(query.taskType && { taskType: query.taskType }),
-          ...(query.status && { status: query.status }),
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.agentLog.count(),
+      prisma.agentLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      prisma.agentLog.count({ where }),
     ]);
 
     return {
       logs: logs.map((l) => ({
-        id: l.id,
-        userId: l.userId,
-        sessionId: l.sessionId,
-        taskType: l.taskType,
-        input: l.input,
-        output: l.output,
-        toolCalls: l.toolCalls,
-        status: l.status,
-        duration: l.duration,
-        tokensUsed: l.tokensUsed,
-        cost: l.cost,
-        createdAt: l.createdAt.toISOString(),
+        id: l.id, userId: l.userId, sessionId: l.sessionId, taskType: l.taskType,
+        input: l.input, output: l.output, toolCalls: l.toolCalls, status: l.status,
+        duration: l.duration, tokensUsed: l.tokensUsed, cost: l.cost, createdAt: l.createdAt.toISOString(),
       })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };

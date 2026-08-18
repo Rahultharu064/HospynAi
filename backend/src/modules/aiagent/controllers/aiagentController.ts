@@ -19,7 +19,7 @@ export class AiController {
     const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedError();
 
-    const result = await AgentService.chat(dto, userId);
+    const result = await AgentService.chat(dto, userId, req.user?.role);
     res.status(200).json({ success: true, status: 200, data: result });
   });
 
@@ -28,7 +28,7 @@ export class AiController {
     const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedError();
 
-    const result = await AgentService.executeTask(dto, userId);
+    const result = await AgentService.executeTask(dto, userId, req.user?.role);
     res.status(200).json({ success: true, status: 200, data: result });
   });
 
@@ -37,7 +37,7 @@ export class AiController {
     const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedError();
 
-    const result = await AgentService.executeToolCall(dto, userId);
+    const result = await AgentService.executeToolCall(dto, userId, req.user?.role);
     res.status(200).json({ success: true, status: 200, data: result });
   });
 

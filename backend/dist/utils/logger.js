@@ -11,7 +11,7 @@ const logDir = path_1.default.join(__dirname, '../../logs');
 const logger = winston_1.default.createLogger({
     level: config_1.config.nodeEnv === 'development' ? 'debug' : 'info',
     format: winston_1.default.format.combine(winston_1.default.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }), winston_1.default.format.errors({ stack: true }), winston_1.default.format.metadata({ fillExcept: ['message', 'level', 'timestamp', 'label'] }), winston_1.default.format.json()),
-    defaultMeta: { service: 'voicemed-pro-api' },
+    defaultMeta: { service: 'hospynai-api' },
     transports: [
         // Console transport for all environments
         new winston_1.default.transports.Console({
