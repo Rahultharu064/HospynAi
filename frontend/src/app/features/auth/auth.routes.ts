@@ -30,4 +30,10 @@ export const AUTH_ROUTES: Routes = [
       import('./pages/reset-password/reset-password.component').then((m) => m.ResetPasswordComponent),
     title: 'Reset password — VoiceMed Pro',
   },
+  {
+    path: 'callback',
+    loadComponent: () =>
+      import('./pages/google-callback/google-callback.component').then((m) => m.GoogleCallbackComponent),
+    title: 'Signing in — VoiceMed Pro',
+  },
 ];

@@ -1,10 +1,12 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
+import passport from 'passport';
 import { config } from '../../../config';
 import { AuthService } from '../services/authService';
 import { TokenService } from '../services/tokenService';
 import { FileService } from '../services/fileService';
 import { AsyncHandler } from '../../../middleware/errorMiddleware';
-import { BadRequestError, UnauthorizedError } from '../../../utils/errors';
+import { AppError, BadRequestError, UnauthorizedError } from '../../../utils/errors';
+import logger from '../../../utils/logger';
 import {
   RegisterInput, LoginInput, VerifyOtpInput, ForgotPasswordInput,
   ResetPasswordInput, ChangePasswordInput, UpdateProfileInput, ResendOtpInput,
@@ -120,15 +122,32 @@ export class AuthController {
     res.status(200).json({ success: true, status: 200, message: 'Avatar uploaded', data: result });
   });
 
-  static googleCallback = AsyncHandler.handle(async (req: Request, res: Response) => {
-    const user = req.user as any;
-    const result = await AuthService.googleLogin(user, req.ip || '', req.headers['user-agent'] || '');
+  // This is a browser redirect flow end-to-end, so on any failure — a rejected
+  // Google login, or an error thrown inside AuthService.googleLogin — the user must
+  // land back on the frontend with an error, never on a raw JSON error response
+  // (which is what AsyncHandler.handle + the default error middleware would produce).
+  static googleCallback = (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate('google', { session: false }, async (err: unknown, profile: any, info: any) => {
+      if (err || !profile) {
+        const message = (info && typeof info === 'object' && 'message' in info) ? info.message : 'Google sign-in failed. Please try again.';
+        logger.warn(`Google OAuth authentication failed: ${message}`);
+        return res.redirect(`${config.frontendUrl}/auth/callback?error=${encodeURIComponent(message)}`);
+      }
 
-    res.cookie('refreshToken', result.tokens.refreshToken, {
-      httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
-    });
+      try {
+        const result = await AuthService.googleLogin(profile, req.ip || '', req.headers['user-agent'] || '');
 
-    res.redirect(`${config.frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
-  });
+        res.cookie('refreshToken', result.tokens.refreshToken, {
+          httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
+          maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
+        });
+
+        res.redirect(`${config.frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
+      } catch (error) {
+        logger.error('Google OAuth callback failed:', error);
+        const message = error instanceof AppError ? error.message : 'Google sign-in failed. Please try again.';
+        res.redirect(`${config.frontendUrl}/auth/callback?error=${encodeURIComponent(message)}`);
+      }
+    })(req, res, next);
+  };
 }
