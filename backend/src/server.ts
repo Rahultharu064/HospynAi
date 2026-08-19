@@ -17,7 +17,12 @@ const startServer = async () => {
     logger.info('📦 Database connected');
 
     const server = http.createServer(app);
-    io = new SocketIOServer(server);
+    io = new SocketIOServer(server, {
+      cors: {
+        origin: config.frontendUrl,
+        credentials: true,
+      },
+    });
 
     server.listen(config.port, () => {
       logger.info(`🚀 Server running on port ${config.port} [${config.nodeEnv}]`);

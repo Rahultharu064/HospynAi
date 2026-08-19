@@ -31,9 +31,10 @@ passport_1.default.use('jwt', new passport_jwt_1.Strategy(jwtOptions, async (pay
         if (user.status === client_1.UserStatus.INACTIVE) {
             return done(null, false, { message: 'Account is inactive' });
         }
-        // Check if session is still valid
+        // Check if session is still valid. payload.sessionId holds the Session's
+        // opaque `token` value (see SessionService.createSession), not its DB `id`.
         const session = await prisma_1.default.session.findUnique({
-            where: { id: payload.sessionId },
+            where: { token: payload.sessionId },
         });
         if (!session || session.expiresAt < new Date()) {
             return done(null, false, { message: 'Session expired' });

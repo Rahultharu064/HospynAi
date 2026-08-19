@@ -28,7 +28,7 @@ export const env = {
   TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
   
   // Frontend
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:4200',
   
   // Security
   BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),

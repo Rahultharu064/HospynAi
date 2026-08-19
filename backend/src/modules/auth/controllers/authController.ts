@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { config } from '../../../config';
 import { AuthService } from '../services/authService';
 import { TokenService } from '../services/tokenService';
 import { FileService } from '../services/fileService';
@@ -63,7 +64,11 @@ export class AuthController {
     const oldRefreshToken = req.cookies?.refreshToken || req.body.refreshToken;
     if (!oldRefreshToken) throw new BadRequestError('Refresh token is required');
 
-    const tokens = await TokenService.rotateRefreshToken(oldRefreshToken);
+    const tokens = await TokenService.rotateRefreshToken(
+      oldRefreshToken,
+      req.ip || '',
+      req.headers['user-agent'] || ''
+    );
     res.cookie('refreshToken', tokens.refreshToken, {
       httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
@@ -124,7 +129,6 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
+    res.redirect(`${config.frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
   });
 }

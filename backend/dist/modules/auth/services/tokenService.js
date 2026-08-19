@@ -10,6 +10,7 @@ const crypto_1 = __importDefault(require("crypto"));
 const config_1 = require("../../../config");
 const prisma_1 = __importDefault(require("../../../config/prisma"));
 const errors_1 = require("../../../utils/errors");
+const sessionService_1 = require("./sessionService");
 class TokenService {
     static generateAccessToken(payload) {
         const options = {
@@ -48,7 +49,7 @@ class TokenService {
             expiresIn: 15 * 60, // 15 minutes in seconds
         };
     }
-    static async rotateRefreshToken(oldRefreshToken) {
+    static async rotateRefreshToken(oldRefreshToken, ipAddress = '', userAgent = '') {
         const storedToken = await prisma_1.default.refreshToken.findUnique({
             where: { token: oldRefreshToken },
             include: { user: true },
@@ -78,11 +79,14 @@ class TokenService {
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             },
         });
+        // A refreshed access token needs its own real Session row — a bare random
+        // UUID here would never match anything authMiddleware looks up.
+        const sessionId = await sessionService_1.SessionService.createSession(storedToken.user.id, ipAddress, userAgent);
         const payload = {
             userId: storedToken.user.id,
             email: storedToken.user.email,
             role: storedToken.user.role,
-            sessionId: crypto_1.default.randomUUID(),
+            sessionId,
         };
         const accessToken = this.generateAccessToken(payload);
         return {

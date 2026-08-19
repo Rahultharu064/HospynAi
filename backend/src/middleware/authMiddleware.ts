@@ -51,9 +51,10 @@ export const authenticate = async (
       throw new UnauthorizedError('Token verification failed');
     }
 
-    // Verify session exists and is active
+    // Verify session exists and is active. decoded.sessionId holds the Session's
+    // opaque `token` value (see SessionService.createSession), not its DB `id`.
     const session = await prisma.session.findUnique({
-      where: { id: decoded.sessionId },
+      where: { token: decoded.sessionId },
     });
 
     if (!session) {
@@ -65,7 +66,7 @@ export const authenticate = async (
       logger.warn(`Session expired: ${decoded.sessionId}`);
       // Clean up expired session
       await prisma.session.delete({
-        where: { id: decoded.sessionId },
+        where: { id: session.id },
       });
       throw new UnauthorizedError('Session expired');
     }
@@ -90,7 +91,7 @@ export const authenticate = async (
 
     // Update session last activity
     await prisma.session.update({
-      where: { id: decoded.sessionId },
+      where: { id: session.id },
       data: { lastActivity: new Date() },
     }).catch((error) => {
       logger.error('Failed to update session activity:', error);

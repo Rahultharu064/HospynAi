@@ -23,7 +23,7 @@ function resolveBlockchainDeploymentsFile() {
     return configured;
 }
 exports.config = {
-    port: process.env.PORT || 3000,
+    port: process.env.PORT || 5000,
     nodeEnv: process.env.NODE_ENV || 'development',
     database: {
         url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/voicemed_pro',
@@ -46,7 +46,7 @@ exports.config = {
     google: {
         clientId: process.env.GOOGLE_CLIENT_ID || '',
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-        callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/api/v1/auth/google/callback',
+        callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/v1/auth/google/callback',
     },
     security: {
         bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '12'),
@@ -122,6 +122,6 @@ exports.config = {
             medicalDataRegistry: process.env.MEDICAL_DATA_REGISTRY_ADDRESS || '',
         },
     },
-    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:4200',
 };
 //# sourceMappingURL=index.js.map

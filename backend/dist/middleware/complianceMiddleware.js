@@ -384,8 +384,9 @@ function validateSessionForCompliance() {
         // Check session age
         const sessionId = req.sessionId;
         if (sessionId) {
+            // sessionId holds the Session's opaque `token` value, not its DB `id`.
             const session = await prisma_1.default.session.findUnique({
-                where: { id: sessionId },
+                where: { token: sessionId },
             });
             if (session) {
                 const sessionAge = Date.now() - session.createdAt.getTime();

@@ -5,6 +5,7 @@ import { config } from "../../../config"
 import { TokenPayload, AuthTokens } from '../../../types/authTypes';
 import prisma from '../../../config/prisma';
 import { UnauthorizedError } from '../../../utils/errors';
+import { SessionService } from './sessionService';
 
 export class TokenService {
   static generateAccessToken(payload: TokenPayload): string {
@@ -58,7 +59,9 @@ export class TokenService {
   }
 
   static async rotateRefreshToken(
-    oldRefreshToken: string
+    oldRefreshToken: string,
+    ipAddress: string = '',
+    userAgent: string = ''
   ): Promise<AuthTokens> {
     const storedToken = await prisma.refreshToken.findUnique({
       where: { token: oldRefreshToken },
@@ -94,11 +97,19 @@ export class TokenService {
       },
     });
 
+    // A refreshed access token needs its own real Session row — a bare random
+    // UUID here would never match anything authMiddleware looks up.
+    const sessionId = await SessionService.createSession(
+      storedToken.user.id,
+      ipAddress,
+      userAgent
+    );
+
     const payload: TokenPayload = {
       userId: storedToken.user.id,
       email: storedToken.user.email,
       role: storedToken.user.role,
-      sessionId: crypto.randomUUID(),
+      sessionId,
     };
 
     const accessToken = this.generateAccessToken(payload);
