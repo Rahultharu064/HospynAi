@@ -57,7 +57,7 @@ AuthController.refreshToken = errorMiddleware_1.AsyncHandler.handle(async (req, 
     const oldRefreshToken = req.cookies?.refreshToken || req.body.refreshToken;
     if (!oldRefreshToken)
         throw new errors_1.BadRequestError('Refresh token is required');
-    const tokens = await tokenService_1.TokenService.rotateRefreshToken(oldRefreshToken);
+    const tokens = await tokenService_1.TokenService.rotateRefreshToken(oldRefreshToken, req.ip || '', req.headers['user-agent'] || '');
     res.cookie('refreshToken', tokens.refreshToken, {
         httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
         maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',

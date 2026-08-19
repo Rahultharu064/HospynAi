@@ -638,11 +638,12 @@ class AuthService {
                 where: { id: userId },
                 data: { passwordHash: hashedPassword },
             });
-            // Delete all other sessions except current
+            // Delete all other sessions except current. currentSessionId holds the
+            // Session's opaque `token` value, not its DB `id`.
             await tx.session.deleteMany({
                 where: {
                     userId,
-                    id: { not: currentSessionId },
+                    token: { not: currentSessionId },
                 },
             });
             // Revoke all refresh tokens except the one for current session
