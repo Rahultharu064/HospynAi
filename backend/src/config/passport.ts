@@ -4,7 +4,7 @@ import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { config } from './index';
 import prisma from '../config/prisma';
 import { TokenPayload, GoogleProfile } from '../types/authTypes';
-import { AuthProvider, UserRole, UserStatus } from '@prisma/client';
+import { UserStatus } from '@prisma/client';
 import logger from '../utils/logger';
 
 // JWT Strategy
@@ -54,6 +54,12 @@ passport.use(
 );
 
 // Google Strategy
+//
+// This deliberately does no database work — AuthService.googleLogin() is the single
+// source of truth for find-or-create, session creation, and token issuance. It expects
+// the raw Google profile shape (profile.emails[0].value, profile.name.givenName, ...),
+// so this callback must hand that profile through unchanged rather than pre-normalizing
+// it into a different shape.
 passport.use(
   'google',
   new GoogleStrategy(
@@ -62,84 +68,20 @@ passport.use(
       clientSecret: config.google.clientSecret,
       callbackURL: config.google.callbackUrl,
       scope: ['profile', 'email'],
-      passReqToCallback: true,
     },
-    async (req: any, accessToken: string, refreshToken: string, profile: GoogleProfile, done: any) => {
+    async (accessToken: string, refreshToken: string, profile: GoogleProfile, done: any) => {
       try {
         const email = profile.emails?.[0]?.value;
-        const googleId = profile.id;
-        const firstName = profile.name?.givenName || '';
-        const lastName = profile.name?.familyName || '';
-        const avatarUrl = profile.photos?.[0]?.value || null;
-
         if (!email) {
           return done(new Error('No email from Google profile'), false);
         }
 
-        // Check if user exists
-        let user = await prisma.user.findUnique({
-          where: { email: email.toLowerCase() },
-        });
-
-        if (user) {
-          // Check if suspended
-          if (user.status === UserStatus.SUSPENDED) {
-            return done(null, false, { message: 'Account is suspended' });
-          }
-
-          // Update user with Google info if not already linked
-          if (!user.googleId) {
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: {
-                googleId,
-                authProvider: AuthProvider.GOOGLE,
-                isEmailVerified: true,
-                avatarUrl: user.avatarUrl || avatarUrl,
-                status: user.status === UserStatus.PENDING_VERIFICATION 
-                  ? UserStatus.ACTIVE 
-                  : user.status,
-              },
-            });
-          }
-
-          // Update avatar if not set
-          if (!user.avatarUrl && avatarUrl) {
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: { avatarUrl },
-            });
-          }
-        } else {
-          // Create new user
-          user = await prisma.user.create({
-            data: {
-              email: email.toLowerCase(),
-              googleId,
-              firstName,
-              lastName,
-              avatarUrl,
-              authProvider: AuthProvider.GOOGLE,
-              isEmailVerified: true,
-              status: UserStatus.ACTIVE,
-              role: UserRole.PATIENT,
-            },
-          });
-
-          logger.info(`New user created via Google: ${email}`);
+        const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+        if (existingUser?.status === UserStatus.SUSPENDED) {
+          return done(null, false, { message: 'Account is suspended' });
         }
 
-        const userData = {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          avatarUrl: user.avatarUrl,
-          isNewUser: user.createdAt.getTime() === user.updatedAt.getTime(),
-        };
-
-        return done(null, userData);
+        return done(null, profile);
       } catch (error) {
         logger.error('Google Strategy Error:', error);
         return done(error, false);
