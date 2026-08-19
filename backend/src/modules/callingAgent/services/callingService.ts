@@ -3,7 +3,6 @@ import prisma from '../../../config/prisma';
 import { config } from '../../../config';
 import { twilioClient } from '../../../integration/twilio/twilioClient';
 import { gptClient, llmClient, ChatMessage } from '../../../integration/ai/aiClient';
-import { AuditService } from '../../auth/services/auditService';
 import {
   InitiateCallInput, TransferToHumanInput, CallQueryInput,
 } from '../validators/callingValidator';
@@ -12,6 +11,23 @@ import {
   CallResponse, CallListResponse, OutboundCallResponse, CallStats, ActiveCall, CallTranscript, TranscriptSegment,
 } from '../../../types/callingTypes';
 import logger from '../../../utils/logger';
+
+// VoiceLog.interactionType is a fixed Prisma enum (APPOINTMENT_BOOKING, SYMPTOM_CHECK,
+// PRESCRIPTION_QUERY, GENERAL_INQUIRY, EMERGENCY). The LLM's classified `intent` string
+// uses a different vocabulary (BOOK_APPOINTMENT, CHECK_SYMPTOMS, ...), so it must be
+// mapped rather than cast directly — a raw cast produces values Prisma will reject at
+// write time (e.g. "GENERAL_INQUIRY" from intent is fine, but "BOOK_APPOINTMENT" is not
+// a valid enum member).
+const INTENT_TO_INTERACTION_TYPE: Record<string, VoiceInteractionType> = {
+  BOOK_APPOINTMENT: VoiceInteractionType.APPOINTMENT_BOOKING,
+  CHECK_SYMPTOMS: VoiceInteractionType.SYMPTOM_CHECK,
+  PRESCRIPTION_QUERY: VoiceInteractionType.PRESCRIPTION_QUERY,
+  GENERAL_INQUIRY: VoiceInteractionType.GENERAL_INQUIRY,
+  EMERGENCY: VoiceInteractionType.EMERGENCY,
+  MEDICAL_ADVICE: VoiceInteractionType.GENERAL_INQUIRY,
+  BILLING: VoiceInteractionType.GENERAL_INQUIRY,
+  OTHER: VoiceInteractionType.GENERAL_INQUIRY,
+};
 
 export class CallingService {
   static async initiateOutboundCall(data: InitiateCallInput, userId: string): Promise<OutboundCallResponse> {
@@ -75,7 +91,7 @@ export class CallingService {
     }
 
     const intentResult = await gptClient.classifyIntent(userInput);
-    if (intentResult.intent === 'EMERGENCY' || (intentResult.entities as any)?.urgency === 'emergency') {
+    if (intentResult.intent === 'EMERGENCY' || intentResult.urgency === 'emergency') {
       return this.handleEmergency(CallSid, userInput);
     }
 
@@ -114,7 +130,8 @@ export class CallingService {
     if (callLog) {
       await prisma.voiceLog.create({
         data: {
-          patientId: callLog.patientId, interactionType: intentResult.interactionType as VoiceInteractionType,
+          patientId: callLog.patientId,
+          interactionType: INTENT_TO_INTERACTION_TYPE[intentResult.intent] || VoiceInteractionType.GENERAL_INQUIRY,
           transcript: userInput, aiResponse: responseText,
           confidence: parseFloat(Confidence || '0.8'), intent: intentResult.intent,
           metadata: { callSid: CallSid, entities: intentResult.entities },

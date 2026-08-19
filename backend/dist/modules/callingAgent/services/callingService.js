@@ -11,6 +11,22 @@ const twilioClient_1 = require("../../../integration/twilio/twilioClient");
 const aiClient_1 = require("../../../integration/ai/aiClient");
 const errors_1 = require("../../../utils/errors");
 const logger_1 = __importDefault(require("../../../utils/logger"));
+// VoiceLog.interactionType is a fixed Prisma enum (APPOINTMENT_BOOKING, SYMPTOM_CHECK,
+// PRESCRIPTION_QUERY, GENERAL_INQUIRY, EMERGENCY). The LLM's classified `intent` string
+// uses a different vocabulary (BOOK_APPOINTMENT, CHECK_SYMPTOMS, ...), so it must be
+// mapped rather than cast directly — a raw cast produces values Prisma will reject at
+// write time (e.g. "GENERAL_INQUIRY" from intent is fine, but "BOOK_APPOINTMENT" is not
+// a valid enum member).
+const INTENT_TO_INTERACTION_TYPE = {
+    BOOK_APPOINTMENT: client_1.VoiceInteractionType.APPOINTMENT_BOOKING,
+    CHECK_SYMPTOMS: client_1.VoiceInteractionType.SYMPTOM_CHECK,
+    PRESCRIPTION_QUERY: client_1.VoiceInteractionType.PRESCRIPTION_QUERY,
+    GENERAL_INQUIRY: client_1.VoiceInteractionType.GENERAL_INQUIRY,
+    EMERGENCY: client_1.VoiceInteractionType.EMERGENCY,
+    MEDICAL_ADVICE: client_1.VoiceInteractionType.GENERAL_INQUIRY,
+    BILLING: client_1.VoiceInteractionType.GENERAL_INQUIRY,
+    OTHER: client_1.VoiceInteractionType.GENERAL_INQUIRY,
+};
 class CallingService {
     static async initiateOutboundCall(data, userId) {
         const patient = await prisma_1.default.patient.findUnique({ where: { id: data.patientId } });
@@ -64,7 +80,7 @@ class CallingService {
             return twilioClient_1.twilioClient.generateEndCallTwiML('I didn\'t hear anything. Please call back when ready.');
         }
         const intentResult = await aiClient_1.gptClient.classifyIntent(userInput);
-        if (intentResult.intent === 'EMERGENCY' || intentResult.entities?.urgency === 'emergency') {
+        if (intentResult.intent === 'EMERGENCY' || intentResult.urgency === 'emergency') {
             return this.handleEmergency(CallSid, userInput);
         }
         const callLog = await prisma_1.default.callLog.findUnique({ where: { callSid: CallSid } });
@@ -98,7 +114,8 @@ class CallingService {
         if (callLog) {
             await prisma_1.default.voiceLog.create({
                 data: {
-                    patientId: callLog.patientId, interactionType: intentResult.interactionType,
+                    patientId: callLog.patientId,
+                    interactionType: INTENT_TO_INTERACTION_TYPE[intentResult.intent] || client_1.VoiceInteractionType.GENERAL_INQUIRY,
                     transcript: userInput, aiResponse: responseText,
                     confidence: parseFloat(Confidence || '0.8'), intent: intentResult.intent,
                     metadata: { callSid: CallSid, entities: intentResult.entities },
