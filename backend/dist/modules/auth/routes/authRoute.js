@@ -32,7 +32,7 @@ router.post('/forgot-password', authLimiter, (0, validateMiddleware_1.validate)(
 router.post('/reset-password', authLimiter, (0, validateMiddleware_1.validate)({ body: authValidator_1.resetPasswordSchema.shape.body }), authController_1.AuthController.resetPassword);
 // Google OAuth
 router.get('/google', passport_1.default.authenticate('google', { scope: ['profile', 'email'], session: false }));
-router.get('/google/callback', passport_1.default.authenticate('google', { session: false, failureRedirect: '/login' }), authController_1.AuthController.googleCallback);
+router.get('/google/callback', authController_1.AuthController.googleCallback);
 // Protected routes
 router.post('/logout', authMiddleware_1.authenticate, authController_1.AuthController.logout);
 router.get('/me', authMiddleware_1.authenticate, authController_1.AuthController.getMe);

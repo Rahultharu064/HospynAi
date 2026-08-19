@@ -81,6 +81,18 @@ export class AuthService {
     return this.http.get<ApiResponse<UserProfile>>(`${this.baseUrl}/me`);
   }
 
+  /**
+   * Completes a Google OAuth login. The backend redirect only carries the access
+   * token (the refresh token already landed as an httpOnly cookie) — there's no
+   * user payload to seed the session with, so this stores the token first and
+   * fetches the profile via /me to populate currentUser.
+   */
+  completeGoogleLogin(accessToken: string): Observable<ApiResponse<UserProfile>> {
+    this.accessToken = accessToken;
+    sessionStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    return this.getMe().pipe(tap((res) => this.updateCurrentUser(res.data)));
+  }
+
   updateProfile(payload: { firstName?: string; lastName?: string; phone?: string | null }): Observable<ApiResponse<UserProfile>> {
     return this.http
       .patch<ApiResponse<UserProfile>>(`${this.baseUrl}/profile`, payload)

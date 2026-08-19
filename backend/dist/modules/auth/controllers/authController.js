@@ -1,13 +1,18 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
+const passport_1 = __importDefault(require("passport"));
 const config_1 = require("../../../config");
 const authService_1 = require("../services/authService");
 const tokenService_1 = require("../services/tokenService");
 const fileService_1 = require("../services/fileService");
 const errorMiddleware_1 = require("../../../middleware/errorMiddleware");
 const errors_1 = require("../../../utils/errors");
+const logger_1 = __importDefault(require("../../../utils/logger"));
 class AuthController {
 }
 exports.AuthController = AuthController;
@@ -106,13 +111,30 @@ AuthController.uploadAvatar = errorMiddleware_1.AsyncHandler.handle(async (req, 
     const result = await authService_1.AuthService.uploadAvatar(req.user.userId, req.file, fileService_1.FileService);
     res.status(200).json({ success: true, status: 200, message: 'Avatar uploaded', data: result });
 });
-AuthController.googleCallback = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
-    const user = req.user;
-    const result = await authService_1.AuthService.googleLogin(user, req.ip || '', req.headers['user-agent'] || '');
-    res.cookie('refreshToken', result.tokens.refreshToken, {
-        httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
-    });
-    res.redirect(`${config_1.config.frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
-});
+// This is a browser redirect flow end-to-end, so on any failure — a rejected
+// Google login, or an error thrown inside AuthService.googleLogin — the user must
+// land back on the frontend with an error, never on a raw JSON error response
+// (which is what AsyncHandler.handle + the default error middleware would produce).
+AuthController.googleCallback = (req, res, next) => {
+    passport_1.default.authenticate('google', { session: false }, async (err, profile, info) => {
+        if (err || !profile) {
+            const message = (info && typeof info === 'object' && 'message' in info) ? info.message : 'Google sign-in failed. Please try again.';
+            logger_1.default.warn(`Google OAuth authentication failed: ${message}`);
+            return res.redirect(`${config_1.config.frontendUrl}/auth/callback?error=${encodeURIComponent(message)}`);
+        }
+        try {
+            const result = await authService_1.AuthService.googleLogin(profile, req.ip || '', req.headers['user-agent'] || '');
+            res.cookie('refreshToken', result.tokens.refreshToken, {
+                httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
+                maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
+            });
+            res.redirect(`${config_1.config.frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
+        }
+        catch (error) {
+            logger_1.default.error('Google OAuth callback failed:', error);
+            const message = error instanceof errors_1.AppError ? error.message : 'Google sign-in failed. Please try again.';
+            res.redirect(`${config_1.config.frontendUrl}/auth/callback?error=${encodeURIComponent(message)}`);
+        }
+    })(req, res, next);
+};
 //# sourceMappingURL=authController.js.map
