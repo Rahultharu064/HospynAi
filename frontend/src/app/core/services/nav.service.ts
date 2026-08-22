@@ -11,9 +11,10 @@ export interface NavItem {
 const ALL_STAFF: UserRole[] = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECHNICIAN'];
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', icon: '🏠' },
+  { label: 'Dashboard', path: '/dashboard', icon: '🏠', roles: [...ALL_STAFF, 'PATIENT'] },
   { label: 'Patients', path: '/patients', icon: '🧑‍⚕️', roles: ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'] },
-  { label: 'Appointments', path: '/appointments', icon: '📅', roles: ALL_STAFF },
+  { label: 'Appointments', path: '/appointments', icon: '📅', roles: [...ALL_STAFF, 'PATIENT'] },
+  { label: 'My Records', path: '/emr', icon: '📋', roles: ['PATIENT'] },
   { label: 'EMR', path: '/emr', icon: '📋', roles: ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE'] },
   { label: 'Billing', path: '/billing', icon: '💳', roles: ['SUPER_ADMIN', 'ADMIN', 'RECEPTIONIST', 'PATIENT'] },
   { label: 'Inventory', path: '/inventory', icon: '💊', roles: ['SUPER_ADMIN', 'ADMIN', 'PHARMACIST'] },
