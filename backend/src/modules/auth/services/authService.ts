@@ -11,6 +11,7 @@ import { EmailService } from './emailService';
 import { AuditService } from './auditService';
 import {
   RegisterInput,
+  CreateStaffInput,
   LoginInput,
   ResetPasswordInput,
   ChangePasswordInput,
@@ -36,6 +37,12 @@ export class AuthService {
   
   /**
    * Register a new user
+   *
+   * Self-service registration always produces a PATIENT with no organization or
+   * branch. Role and tenancy are never read from `dto` — see registerSchema, which
+   * rejects those fields outright — because this endpoint is unauthenticated and
+   * anything it trusts is attacker-controlled. Staff accounts go through
+   * `createStaff` instead.
    */
   static async register(dto: RegisterInput, ipAddress: string, userAgent: string) {
     // Check if email already exists
@@ -57,28 +64,6 @@ export class AuthService {
       }
     }
 
-    // Validate organization and branch if provided
-    if (dto.organizationId) {
-      const organization = await prisma.organization.findUnique({
-        where: { id: dto.organizationId },
-      });
-      if (!organization) {
-        throw new BadRequestError('Organization not found');
-      }
-    }
-
-    if (dto.branchId) {
-      const branch = await prisma.branch.findUnique({
-        where: { id: dto.branchId },
-      });
-      if (!branch) {
-        throw new BadRequestError('Branch not found');
-      }
-      if (dto.organizationId && branch.organizationId !== dto.organizationId) {
-        throw new BadRequestError('Branch does not belong to the specified organization');
-      }
-    }
-
     // Hash password
     const hashedPassword = await bcrypt.hash(dto.password, config.security.bcryptRounds);
 
@@ -92,11 +77,9 @@ export class AuthService {
           firstName: dto.firstName,
           lastName: dto.lastName,
           phone: dto.phone || null,
-          role: dto.role || UserRole.PATIENT,
+          role: UserRole.PATIENT,
           status: UserStatus.PENDING_VERIFICATION,
           authProvider: AuthProvider.LOCAL,
-          organizationId: dto.organizationId || null,
-          branchId: dto.branchId || null,
         },
       });
 
@@ -160,6 +143,146 @@ export class AuthService {
   }
 
   /**
+   * Provision a staff account (ADMIN / SUPER_ADMIN only).
+   *
+   * This is the privileged path that `register` deliberately isn't: it is the only
+   * place a caller-supplied `role` is honoured, and it is only reachable behind
+   * `authenticate` + `authorize(SUPER_ADMIN, ADMIN)`.
+   *
+   * No password is set here. The invitee receives a PASSWORD_RESET code and chooses
+   * their own credential, so an invite never travels through a channel that also
+   * carries a usable password.
+   *
+   * An ADMIN is scoped to their own organization; only a SUPER_ADMIN may place a
+   * user into an arbitrary tenant.
+   */
+  static async createStaff(
+    dto: CreateStaffInput,
+    actor: { userId: string; role: UserRole; organizationId: string | null },
+    ipAddress: string,
+    userAgent: string
+  ) {
+    const existingEmail = await prisma.user.findUnique({ where: { email: dto.email } });
+    if (existingEmail) {
+      throw new ConflictError('An account with this email already exists');
+    }
+
+    if (dto.phone) {
+      const existingPhone = await prisma.user.findUnique({ where: { phone: dto.phone } });
+      if (existingPhone) {
+        throw new ConflictError('An account with this phone number already exists');
+      }
+    }
+
+    // Only a SUPER_ADMIN may provision outside their own tenant. For an ADMIN the
+    // target org is forced to their own, so a supplied organizationId cannot be used
+    // to plant a user in someone else's organization.
+    const organizationId =
+      actor.role === UserRole.SUPER_ADMIN ? dto.organizationId ?? null : actor.organizationId;
+
+    if (actor.role !== UserRole.SUPER_ADMIN && dto.organizationId && dto.organizationId !== actor.organizationId) {
+      throw new ForbiddenError('You can only add staff to your own organization');
+    }
+
+    // Creating another SUPER_ADMIN is reserved for SUPER_ADMINs.
+    if (dto.role === UserRole.SUPER_ADMIN && actor.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenError('Only a super admin can create another super admin');
+    }
+
+    if (organizationId) {
+      const organization = await prisma.organization.findUnique({ where: { id: organizationId } });
+      if (!organization) {
+        throw new BadRequestError('Organization not found');
+      }
+    }
+
+    if (dto.branchId) {
+      const branch = await prisma.branch.findUnique({ where: { id: dto.branchId } });
+      if (!branch) {
+        throw new BadRequestError('Branch not found');
+      }
+      if (organizationId && branch.organizationId !== organizationId) {
+        throw new BadRequestError('Branch does not belong to the specified organization');
+      }
+    }
+
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: dto.email,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          phone: dto.phone || null,
+          role: dto.role,
+          status: UserStatus.PENDING_VERIFICATION,
+          authProvider: AuthProvider.LOCAL,
+          organizationId,
+          branchId: dto.branchId || null,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: actor.userId,
+          organizationId: newUser.organizationId,
+          action: 'STAFF_CREATED',
+          resource: 'USER',
+          resourceId: newUser.id,
+          ipAddress,
+          userAgent,
+          metadata: {
+            email: newUser.email,
+            role: newUser.role,
+            createdBy: actor.userId,
+          },
+        },
+      });
+
+      return newUser;
+    });
+
+    // The invite doubles as the credential-setup code.
+    try {
+      await OtpService.createAndSendOtp(user.id, user.email, user.phone, 'PASSWORD_RESET', 'EMAIL');
+    } catch (error) {
+      logger.error('Failed to send staff invite email:', error);
+      if (config.nodeEnv === 'production') {
+        throw new InternalServerError(
+          'Staff account created but the invite email could not be sent. Use POST /api/v1/auth/resend-otp to retry.'
+        );
+      }
+      logger.warn(`[DEV] Invite email delivery failed for ${user.email}. Check the logs above for the code.`);
+    }
+
+    logger.info(`Staff account created: ${user.email} (${user.role}) by ${actor.userId}`);
+
+    return {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      message: 'Staff account created. An invite with a setup code has been emailed.',
+    };
+  }
+
+  /**
+   * Resolve the acting user's role and tenant from the database rather than trusting
+   * the JWT claims. A token minted before a role or org change would otherwise carry
+   * stale authority for its full 15-minute life.
+   */
+  static async getActorContext(userId: string) {
+    const actor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, organizationId: true },
+    });
+
+    if (!actor) {
+      throw new UnauthorizedError('User not found');
+    }
+
+    return { userId: actor.id, role: actor.role, organizationId: actor.organizationId };
+  }
+
+  /**
    * ============================================
    * LOGIN
    * ============================================
@@ -193,9 +316,25 @@ export class AuthService {
       throw new UnauthorizedError('Invalid email or password');
     }
 
+    // Time-boxed brute-force gate.
+    //
+    // Checked *before* the password compare so a locked account can't be probed
+    // further, and derived purely from the rolling audit-log window so the lock
+    // always expires on its own. This used to write `status: SUSPENDED`, which
+    // nothing ever cleared — meaning anyone who knew an email address could
+    // permanently disable that account with five bad guesses, and the "wait 15
+    // minutes" alert email was a lie.
+    const failedAttempts = await this.getRecentFailedLoginAttempts(user.id);
+
+    if (failedAttempts >= config.security.maxLoginAttempts) {
+      throw new AccountLockedError(
+        `Too many failed login attempts. Please try again in ${config.security.loginLockoutMinutes} minutes, or reset your password.`
+      );
+    }
+
     // Verify password
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
-    
+
     if (!isPasswordValid) {
       // Log failed login attempt
       await AuditService.log({
@@ -210,19 +349,11 @@ export class AuthService {
         },
       });
 
-      // Check for brute force attack
-      const recentFailedAttempts = await this.getRecentFailedLoginAttempts(user.id);
-      
-      if (recentFailedAttempts >= config.security.maxLoginAttempts) {
-        logger.warn(`Account locked due to multiple failed attempts: ${user.email}`);
-        
-        // Lock the account temporarily
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { status: UserStatus.SUSPENDED },
-        });
+      // Alert once — on the attempt that actually trips the threshold — rather than
+      // on every attempt past it.
+      if (failedAttempts + 1 >= config.security.maxLoginAttempts) {
+        logger.warn(`Account temporarily locked after repeated failed attempts: ${user.email}`);
 
-        // Send security alert email
         EmailService.sendMail(
           user.email,
           'Security Alert - Multiple Failed Login Attempts',
@@ -232,7 +363,7 @@ export class AuthService {
         });
 
         throw new AccountLockedError(
-          'Account temporarily locked due to multiple failed login attempts. Please check your email or contact support.'
+          `Too many failed login attempts. Please try again in ${config.security.loginLockoutMinutes} minutes, or reset your password.`
         );
       }
 
@@ -350,17 +481,23 @@ export class AuthService {
           throw new UnauthorizedError('Account is suspended. Please contact support.');
         }
 
-        // Update Google ID if not already linked
+        // Link the Google identity to the existing account.
+        //
+        // `authProvider` is deliberately left alone when the account already has a
+        // password. It used to be overwritten with GOOGLE, and since `login` refuses
+        // any account whose provider isn't LOCAL, linking Google permanently locked
+        // the user out of their own password — with no way back. Provider is only
+        // promoted for accounts that never had a local credential.
         if (!user.googleId) {
           user = await tx.user.update({
             where: { id: user.id },
             data: {
               googleId,
-              authProvider: AuthProvider.GOOGLE,
+              ...(user.passwordHash ? {} : { authProvider: AuthProvider.GOOGLE }),
               isEmailVerified: true,
               avatarUrl: user.avatarUrl || avatarUrl,
-              status: user.status === UserStatus.PENDING_VERIFICATION 
-                ? UserStatus.ACTIVE 
+              status: user.status === UserStatus.PENDING_VERIFICATION
+                ? UserStatus.ACTIVE
                 : user.status,
             },
           });
@@ -463,8 +600,11 @@ export class AuthService {
    * Logout user
    */
   static async logout(userId: string, sessionId: string, refreshToken?: string) {
-    // Invalidate current session
+    // Invalidate current session and every refresh token issued against it. Revoking
+    // only the cookie's token (as this used to) left the rest of the family live, so
+    // any other token from the same session could refresh straight back in.
     if (sessionId) {
+      await TokenService.revokeSessionTokens(sessionId);
       await SessionService.invalidateSession(sessionId);
     }
 
@@ -526,7 +666,17 @@ export class AuthService {
    */
 
   /**
-   * Verify OTP code
+   * Verify an OTP code.
+   *
+   * Verifying an email or a 2FA challenge is the final step of signing in, so it
+   * returns a real session (tokens + user) exactly like `login` does. It previously
+   * returned only a message, while the frontend called `setSession(res.data)` on the
+   * result — so a *successful* verification threw on `undefined.accessToken` and
+   * dropped the user on the dashboard with no session at all.
+   *
+   * PHONE_VERIFICATION and PASSWORD_RESET are not sign-in events and return no
+   * tokens: the former is a profile update, the latter only marks the code usable by
+   * `resetPassword`.
    */
   static async verifyOtp(
     email: string,
@@ -594,9 +744,59 @@ export class AuthService {
 
     logger.info(`OTP verified for user ${user.email}: ${type}`);
 
-    return {
+    const isEmailVerified = type === 'EMAIL_VERIFICATION' ? true : user.isEmailVerified;
+    const baseResult = {
       message: `${this.getOtpTypeLabel(type)} verified successfully`,
-      isEmailVerified: type === 'EMAIL_VERIFICATION' ? true : user.isEmailVerified,
+      isEmailVerified,
+    };
+
+    // Only the sign-in flavours mint a session.
+    if (type !== 'EMAIL_VERIFICATION' && type !== 'TWO_FACTOR') {
+      return baseResult;
+    }
+
+    // A verified code doesn't override an account an admin has disabled.
+    const effectiveStatus = updateData.status ?? user.status;
+    this.validateUserStatus(effectiveStatus);
+
+    const sessionId = await SessionService.createSession(user.id, ipAddress, userAgent);
+    const tokens = await TokenService.createAuthTokens(
+      user.id,
+      user.email,
+      user.role,
+      sessionId
+    );
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), lastLoginIp: ipAddress },
+    });
+
+    await AuditService.log({
+      userId: user.id,
+      action: 'LOGIN_SUCCESS',
+      resource: 'AUTH',
+      ipAddress,
+      userAgent,
+      metadata: { loginMethod: type === 'TWO_FACTOR' ? 'TWO_FACTOR' : 'EMAIL_VERIFICATION', sessionId },
+    });
+
+    return {
+      ...baseResult,
+      tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        isEmailVerified,
+        isPhoneVerified: user.isPhoneVerified,
+        mfaEnabled: user.mfaEnabled,
+        organizationId: user.organizationId,
+        branchId: user.branchId,
+      },
     };
   }
 
@@ -683,42 +883,60 @@ export class AuthService {
   }
 
   /**
-   * Reset password with token
+   * Reset password with a verified reset code.
+   *
+   * The lookup is scoped to the account named by `dto.email`. It previously matched
+   * `code` across every user's live PASSWORD_RESET tokens, so a single guessed
+   * 6-digit code reset whichever account happened to hold it — the attacker didn't
+   * need to know, or even target, a specific user.
    */
   static async resetPassword(
     dto: ResetPasswordInput,
     ipAddress: string,
     userAgent: string
   ) {
-    // Find valid OTP token
+    const user = await prisma.user.findUnique({ where: { email: dto.email } });
+
+    // Same opaque error for "no such user" and "bad code" so this can't be used to
+    // enumerate accounts.
+    const invalidToken = new BadRequestError(
+      'Invalid or expired reset code. Please request a new one.'
+    );
+
+    if (!user) {
+      throw invalidToken;
+    }
+
     const otpRecord = await prisma.otpToken.findFirst({
       where: {
+        userId: user.id,
         code: dto.token,
         type: 'PASSWORD_RESET',
         verifiedAt: { not: null },
         expiresAt: { gt: new Date() },
       },
-      include: { user: true },
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!otpRecord || !otpRecord.user) {
-      throw new BadRequestError('Invalid or expired reset token. Please request a new one.');
+    if (!otpRecord) {
+      throw invalidToken;
     }
 
-    const user = otpRecord.user;
-
-    // Check if user uses local auth
-    if (user.authProvider !== AuthProvider.LOCAL || !user.passwordHash) {
+    // A social-auth account has no local credential to reset. An invited staff
+    // account is LOCAL with passwordHash still null — that's the credential-setup
+    // path and must be allowed through.
+    if (user.authProvider !== AuthProvider.LOCAL) {
       throw new BadRequestError(
         'This account uses social authentication. Password cannot be reset here.'
       );
     }
 
     // Check if new password is same as old
-    const isSamePassword = await bcrypt.compare(dto.newPassword, user.passwordHash);
-    if (isSamePassword) {
-      throw new BadRequestError('New password cannot be the same as your current password');
+    if (user.passwordHash) {
+      const isSamePassword = await bcrypt.compare(dto.newPassword, user.passwordHash);
+      if (isSamePassword) {
+        throw new BadRequestError('New password cannot be the same as your current password');
+      }
     }
 
     // Hash new password
@@ -726,12 +944,20 @@ export class AuthService {
 
     // Update password and invalidate all sessions/tokens
     await prisma.$transaction(async (tx) => {
-      // Update password
+      // Update password.
+      //
+      // Deliberately does NOT touch `status`: an account suspended by an
+      // administrator must stay suspended. This used to flip SUSPENDED → ACTIVE,
+      // which let any suspended user reinstate themselves via forgot-password.
+      // PENDING_VERIFICATION is promoted because completing an emailed code proves
+      // control of the address, which is exactly what that state is waiting on.
       await tx.user.update({
         where: { id: user.id },
         data: {
           passwordHash: hashedPassword,
-          status: user.status === UserStatus.SUSPENDED ? UserStatus.ACTIVE : user.status,
+          ...(user.status === UserStatus.PENDING_VERIFICATION
+            ? { status: UserStatus.ACTIVE, isEmailVerified: true }
+            : {}),
         },
       });
 
@@ -839,28 +1065,21 @@ export class AuthService {
         },
       });
 
-      // Revoke all refresh tokens except the one for current session
-      // Find current session's refresh token family
-      const currentTokens = await tx.refreshToken.findFirst({
+      // Revoke every refresh token that isn't the current session's.
+      //
+      // Refresh tokens carry their session's opaque token as `family`, so "keep the
+      // caller signed in" is exactly "keep this one family". This used to keep
+      // whichever token happened to be newest, which is the caller's only by
+      // coincidence — on an account with concurrent sessions a password change could
+      // preserve an intruder's session and revoke the owner's instead.
+      await tx.refreshToken.updateMany({
         where: {
           userId,
           revokedAt: null,
-          expiresAt: { gt: new Date() },
+          family: { not: currentSessionId },
         },
-        orderBy: { createdAt: 'desc' },
+        data: { revokedAt: new Date() },
       });
-
-      if (currentTokens) {
-        // Revoke all other tokens
-        await tx.refreshToken.updateMany({
-          where: {
-            userId,
-            revokedAt: null,
-            id: { not: currentTokens.id },
-          },
-          data: { revokedAt: new Date() },
-        });
-      }
 
       // Log password change
       await tx.auditLog.create({
@@ -1096,7 +1315,7 @@ export class AuthService {
    * Deactivate user account
    */
   static async deactivateAccount(userId: string, ipAddress: string, userAgent: string) {
-    const user = await prisma.user.update({
+    await prisma.user.update({
       where: { id: userId },
       data: { status: UserStatus.INACTIVE },
     });
@@ -1124,7 +1343,7 @@ export class AuthService {
    * Reactivate user account
    */
   static async reactivateAccount(userId: string, ipAddress: string, userAgent: string) {
-    const user = await prisma.user.update({
+    await prisma.user.update({
       where: { id: userId },
       data: { status: UserStatus.ACTIVE },
     });
@@ -1344,18 +1563,36 @@ export class AuthService {
   }
 
   /**
-   * Get recent failed login attempts count
+   * Count failed login attempts that still count against the lockout threshold.
+   *
+   * Only failures newer than the last successful login are counted, so signing in
+   * successfully clears the streak. The audit rows themselves are never deleted —
+   * they're the audit trail — the cutoff just stops stale failures from locking a
+   * user who has since logged in fine.
    */
   private static async getRecentFailedLoginAttempts(userId: string): Promise<number> {
     const lockoutWindow = new Date(
       Date.now() - config.security.loginLockoutMinutes * 60 * 1000
     );
 
+    const lastSuccess = await prisma.auditLog.findFirst({
+      where: {
+        userId,
+        action: 'LOGIN_SUCCESS',
+        createdAt: { gte: lockoutWindow },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    const since =
+      lastSuccess && lastSuccess.createdAt > lockoutWindow ? lastSuccess.createdAt : lockoutWindow;
+
     return prisma.auditLog.count({
       where: {
         userId,
         action: 'LOGIN_FAILED',
-        createdAt: { gte: lockoutWindow },
+        createdAt: { gt: since },
       },
     });
   }
@@ -1416,7 +1653,7 @@ export class AuthService {
                 <strong>For your security, your account has been temporarily locked.</strong>
               </p>
             </div>
-            <p>If this was you, please wait 15 minutes and try again, or use the "Forgot Password" option.</p>
+            <p>If this was you, please wait ${config.security.loginLockoutMinutes} minutes and try again, or use the "Forgot Password" option.</p>
             <p>If this wasn't you, please contact our support team immediately.</p>
           </div>
         </div>

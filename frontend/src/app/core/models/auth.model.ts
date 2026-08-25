@@ -1,4 +1,4 @@
-import { CurrentUser } from './user.model';
+import { CurrentUser, UserProfile, UserRole } from './user.model';
 
 export interface LoginRequest {
   email: string;
@@ -53,7 +53,13 @@ export interface ForgotPasswordRequest {
   email: string;
 }
 
+/**
+ * `email` scopes the reset code to one account. The API requires it — a code is only
+ * looked up against the user it was issued to, so a request without an email is
+ * rejected outright.
+ */
 export interface ResetPasswordRequest {
+  email: string;
   token: string;
   newPassword: string;
   confirmPassword: string;
@@ -68,4 +74,54 @@ export interface ChangePasswordRequest {
 export interface RefreshResponseData {
   accessToken: string;
   expiresIn: number;
+}
+
+/**
+ * GET /auth/me. The API wraps the profile in an envelope rather than returning the
+ * user directly, so this must be unwrapped before it reaches `currentUser` —
+ * assigning the envelope leaves `role` undefined and every role check fails open.
+ */
+export interface MeResponseData {
+  user: UserProfile;
+  permissions: string[];
+}
+
+/**
+ * POST /auth/verify-otp with EMAIL_VERIFICATION or TWO_FACTOR completes a sign-in and
+ * hands back a session exactly like /login. PHONE_VERIFICATION and PASSWORD_RESET
+ * only confirm the code, so callers must narrow before assuming a session exists.
+ */
+export interface OtpVerifiedData {
+  verified: true;
+  isEmailVerified: boolean;
+}
+
+export type VerifyOtpResult = LoginResponseData | OtpVerifiedData;
+
+/** GET /auth/sessions. The opaque session token is deliberately never sent to the client. */
+export interface ActiveSession {
+  id: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  lastActivity: string;
+  expiresAt: string;
+  createdAt: string;
+  current: boolean;
+}
+
+/** POST /auth/staff — privileged provisioning, SUPER_ADMIN and ADMIN only. */
+export interface CreateStaffRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  role: Exclude<UserRole, 'PATIENT'>;
+  organizationId?: string;
+  branchId?: string;
+}
+
+export interface CreateStaffResponseData {
+  userId: string;
+  email: string;
+  role: UserRole;
 }

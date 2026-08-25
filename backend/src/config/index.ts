@@ -1,6 +1,37 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+const isProduction = (process.env.NODE_ENV || 'development') === 'production';
+
+/**
+ * Read a secret that must never fall back to a shipped default in production.
+ *
+ * A hardcoded JWT signing key in a deployed build means anyone with the source can
+ * mint a valid token for any user and any role, so this refuses to boot rather than
+ * silently using the placeholder. Outside production the dev default keeps
+ * `npm run dev` working with no .env.
+ */
+function requireSecret(name: string, devFallback: string): string {
+  const value = process.env[name];
+
+  if (value && value.trim().length > 0) {
+    if (isProduction && value.trim().length < 32) {
+      throw new Error(
+        `${name} must be at least 32 characters in production. Generate one with: openssl rand -hex 32`
+      );
+    }
+    return value;
+  }
+
+  if (isProduction) {
+    throw new Error(
+      `${name} is required in production. Generate one with: openssl rand -hex 32`
+    );
+  }
+
+  return devFallback;
+}
+
 const blockchainNetworkId = parseInt(
   process.env.BLOCKCHAIN_NETWORK_ID ||
     (process.env.NODE_ENV === 'production' ? '137' : '80002'),
@@ -36,8 +67,8 @@ export const config = {
   },
   
   jwt: {
-    accessTokenSecret: process.env.JWT_ACCESS_SECRET || 'access-secret-key-change-in-production',
-    refreshTokenSecret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key-change-in-production',
+    accessTokenSecret: requireSecret('JWT_ACCESS_SECRET', 'dev-only-access-secret-do-not-use-in-production'),
+    refreshTokenSecret: requireSecret('JWT_REFRESH_SECRET', 'dev-only-refresh-secret-do-not-use-in-production'),
     accessTokenExpiry: process.env.JWT_ACCESS_EXPIRY || '15m',
     refreshTokenExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
     issuer: 'voicemed-pro',

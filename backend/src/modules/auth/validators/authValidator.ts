@@ -80,6 +80,12 @@ const phoneSchema = z
   .optional();
 
 // Register validation
+//
+// Self-service registration is PATIENT-only, so this schema deliberately does not
+// accept `role`, `organizationId` or `branchId`. `.strict()` makes that a hard
+// rejection rather than a silent strip, so a client that tries to send
+// `role: "SUPER_ADMIN"` gets a 400 instead of quietly having it ignored. Staff
+// accounts are provisioned through the authenticated admin-only route below.
 export const registerSchema = z.object({
   body: z.object({
     email: emailSchema,
@@ -90,19 +96,33 @@ export const registerSchema = z.object({
     firstName: firstNameSchema,
     lastName: lastNameSchema,
     phone: z.string().regex(/^\+?[1-9]\d{6,14}$/, VALIDATION_MESSAGES.phone.format).nullable().optional(),
-    role: z.nativeEnum(UserRole).optional().default(UserRole.PATIENT),
-    organizationId: z.string().cuid('Invalid organization ID').optional(),
-    branchId: z.string().cuid('Invalid branch ID').optional(),
     acceptTerms: z.boolean().refine((val) => val === true, {
       message: 'You must accept the terms and conditions',
     }),
     acceptPrivacy: z.boolean().refine((val) => val === true, {
       message: 'You must accept the privacy policy',
     }),
-  }).refine((data) => data.password === data.confirmPassword, {
+  }).strict().refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   }),
+});
+
+// Staff provisioning — the privileged counterpart to registerSchema. Reaching the
+// handler behind this schema requires an authenticated SUPER_ADMIN/ADMIN, which is
+// what makes `role` safe to accept here.
+export const createStaffSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+    firstName: firstNameSchema,
+    lastName: lastNameSchema,
+    phone: z.string().regex(/^\+?[1-9]\d{6,14}$/, VALIDATION_MESSAGES.phone.format).nullable().optional(),
+    role: z.nativeEnum(UserRole).refine((role) => role !== UserRole.PATIENT, {
+      message: 'Use patient registration to create patient accounts',
+    }),
+    organizationId: z.string().cuid('Invalid organization ID').optional(),
+    branchId: z.string().cuid('Invalid branch ID').optional(),
+  }).strict(),
 });
 
 // Login validation
@@ -139,8 +159,14 @@ export const forgotPasswordSchema = z.object({
 });
 
 // Reset password
+//
+// `email` is required so the reset code can be looked up scoped to one account.
+// Without it the 6-digit code would be matched across every user's live reset
+// tokens, which turns a guessed code into a takeover of whichever account happens
+// to hold it.
 export const resetPasswordSchema = z.object({
   body: z.object({
+    email: emailSchema,
     token: z.string().min(1, 'Reset token is required'),
     newPassword: passwordSchema,
     confirmPassword: z.string({
@@ -194,6 +220,7 @@ export const resendOtpSchema = z.object({
 
 // Type exports
 export type RegisterInput = z.infer<typeof registerSchema>['body'];
+export type CreateStaffInput = z.infer<typeof createStaffSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>['body'];
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>['body'];
