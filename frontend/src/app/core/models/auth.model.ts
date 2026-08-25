@@ -1,4 +1,4 @@
-import { CurrentUser, UserProfile, UserRole } from './user.model';
+import { CurrentUser, UserProfile, UserRole, UserStatus } from './user.model';
 
 export interface LoginRequest {
   email: string;
@@ -107,6 +107,32 @@ export interface ActiveSession {
   expiresAt: string;
   createdAt: string;
   current: boolean;
+}
+
+export interface UpdateProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  phone?: string | null;
+}
+
+/**
+ * PATCH /auth/profile echoes only the columns it touched — it is deliberately not a
+ * full profile, so don't treat it as one.
+ */
+export interface UpdatedProfileData {
+  id: string;
+  email: string;
+  phone: string | null;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+  role: UserRole;
+  status: UserStatus;
+  updatedAt: string;
+}
+
+export interface AvatarUploadData {
+  avatarUrl: string;
 }
 
 /** POST /auth/staff — privileged provisioning, SUPER_ADMIN and ADMIN only. */
