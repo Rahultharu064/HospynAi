@@ -122,13 +122,14 @@ export class ProfileComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // /auth/me returns a { user, permissions } envelope, not the user directly.
     this.authService.getMe().subscribe({
-      next: (res) => {
-        this.profile.set(res.data);
+      next: ({ user }) => {
+        this.profile.set(user);
         this.profileForm.patchValue({
-          firstName: res.data.firstName,
-          lastName: res.data.lastName,
-          phone: res.data.phone ?? '',
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone ?? '',
         });
         this.loading.set(false);
       },

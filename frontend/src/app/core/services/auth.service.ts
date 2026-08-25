@@ -3,23 +3,32 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, finalize, map, shareReplay, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  ActiveSession,
+  AvatarUploadData,
   ChangePasswordRequest,
+  CreateStaffRequest,
+  CreateStaffResponseData,
   ForgotPasswordRequest,
   LoginRequest,
   LoginResponseData,
   LoginResult,
+  MeResponseData,
   RefreshResponseData,
   RegisterRequest,
   RegisterResponseData,
   ResendOtpRequest,
   ResetPasswordRequest,
+  UpdateProfileRequest,
+  UpdatedProfileData,
   VerifyOtpRequest,
+  VerifyOtpResult,
 } from '../models/auth.model';
 import { ApiResponse } from '../models/api-response.model';
-import { CurrentUser, UserProfile } from '../models/user.model';
+import { CurrentUser } from '../models/user.model';
 
 const ACCESS_TOKEN_KEY = 'vmp_access_token';
 const USER_KEY = 'vmp_user';
+const PERMISSIONS_KEY = 'vmp_permissions';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -27,8 +36,10 @@ export class AuthService {
 
   private accessToken: string | null = sessionStorage.getItem(ACCESS_TOKEN_KEY);
   private readonly _currentUser = signal<CurrentUser | null>(this.readStoredUser());
+  private readonly _permissions = signal<readonly string[]>(this.readStoredPermissions());
 
   readonly currentUser = this._currentUser.asReadonly();
+  readonly permissions = this._permissions.asReadonly();
   readonly isAuthenticated = computed(() => this._currentUser() !== null);
   readonly role = computed(() => this._currentUser()?.role ?? null);
 
@@ -37,6 +48,15 @@ export class AuthService {
 
   getAccessToken(): string | null {
     return this.accessToken;
+  }
+
+  /**
+   * Permission list is issued by GET /auth/me, so it is empty until that has been
+   * called at least once in the session. Use `role()` for anything that must be
+   * correct immediately after login; this is for finer-grained UI affordances.
+   */
+  hasPermission(permission: string): boolean {
+    return this._permissions().includes(permission);
   }
 
   login(payload: LoginRequest): Observable<ApiResponse<LoginResult>> {
@@ -55,10 +75,22 @@ export class AuthService {
     return this.http.post<ApiResponse<RegisterResponseData>>(`${this.baseUrl}/register`, payload);
   }
 
-  verifyOtp(payload: VerifyOtpRequest): Observable<ApiResponse<LoginResponseData>> {
+  /**
+   * Only EMAIL_VERIFICATION and TWO_FACTOR complete a sign-in and come back with a
+   * session; PHONE_VERIFICATION and PASSWORD_RESET just confirm the code. This used
+   * to store the session unconditionally, which wrote `undefined` as the access token
+   * and a user-less session for the two flavours that don't issue one.
+   */
+  verifyOtp(payload: VerifyOtpRequest): Observable<ApiResponse<VerifyOtpResult>> {
     return this.http
-      .post<ApiResponse<LoginResponseData>>(`${this.baseUrl}/verify-otp`, payload, { withCredentials: true })
-      .pipe(tap((res) => this.setSession(res.data)));
+      .post<ApiResponse<VerifyOtpResult>>(`${this.baseUrl}/verify-otp`, payload, { withCredentials: true })
+      .pipe(
+        tap((res) => {
+          if ('accessToken' in res.data) {
+            this.setSession(res.data);
+          }
+        })
+      );
   }
 
   resendOtp(payload: ResendOtpRequest): Observable<ApiResponse<null>> {
@@ -77,8 +109,19 @@ export class AuthService {
     return this.http.post<ApiResponse<null>>(`${this.baseUrl}/change-password`, payload);
   }
 
-  getMe(): Observable<ApiResponse<UserProfile>> {
-    return this.http.get<ApiResponse<UserProfile>>(`${this.baseUrl}/me`);
+  /**
+   * Unwraps the `{ user, permissions }` envelope the API returns and refreshes both
+   * signals. Assigning the envelope straight into `currentUser` left `role`
+   * undefined, which silently broke every role-gated view after a Google login.
+   */
+  getMe(): Observable<MeResponseData> {
+    return this.http.get<ApiResponse<MeResponseData>>(`${this.baseUrl}/me`).pipe(
+      map((res) => res.data),
+      tap((data) => {
+        this.updateCurrentUser(data.user);
+        this.setPermissions(data.permissions);
+      })
+    );
   }
 
   /**
@@ -87,16 +130,24 @@ export class AuthService {
    * user payload to seed the session with, so this stores the token first and
    * fetches the profile via /me to populate currentUser.
    */
-  completeGoogleLogin(accessToken: string): Observable<ApiResponse<UserProfile>> {
+  completeGoogleLogin(accessToken: string): Observable<MeResponseData> {
     this.accessToken = accessToken;
     sessionStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    return this.getMe().pipe(tap((res) => this.updateCurrentUser(res.data)));
+    return this.getMe();
   }
 
-  updateProfile(payload: { firstName?: string; lastName?: string; phone?: string | null }): Observable<ApiResponse<UserProfile>> {
+  updateProfile(payload: UpdateProfileRequest): Observable<ApiResponse<UpdatedProfileData>> {
     return this.http
-      .patch<ApiResponse<UserProfile>>(`${this.baseUrl}/profile`, payload)
+      .patch<ApiResponse<UpdatedProfileData>>(`${this.baseUrl}/profile`, payload)
       .pipe(tap((res) => this.updateCurrentUser(res.data)));
+  }
+
+  uploadAvatar(file: File): Observable<ApiResponse<AvatarUploadData>> {
+    const form = new FormData();
+    form.append('avatar', file);
+    return this.http
+      .post<ApiResponse<AvatarUploadData>>(`${this.baseUrl}/avatar`, form)
+      .pipe(tap((res) => this.updateCurrentUser({ avatarUrl: res.data.avatarUrl })));
   }
 
   /** Multicasts to any requests that race into a 401 at the same time, so only one refresh call fires. */
@@ -123,12 +174,47 @@ export class AuthService {
       .pipe(tap(() => this.clearSession()));
   }
 
+  /** Sign out everywhere — revokes every session and refresh token for the account. */
+  logoutAll(): Observable<ApiResponse<null>> {
+    return this.http
+      .post<ApiResponse<null>>(`${this.baseUrl}/logout-all`, {}, { withCredentials: true })
+      .pipe(tap(() => this.clearSession()));
+  }
+
+  /** "Where you're signed in" — the caller's own live sessions. */
+  listSessions(): Observable<ActiveSession[]> {
+    return this.http
+      .get<ApiResponse<ActiveSession[]>>(`${this.baseUrl}/sessions`)
+      .pipe(map((res) => res.data));
+  }
+
+  revokeSession(sessionId: string): Observable<ApiResponse<null>> {
+    return this.http.delete<ApiResponse<null>>(`${this.baseUrl}/sessions/${sessionId}`);
+  }
+
+  deactivateAccount(): Observable<ApiResponse<null>> {
+    return this.http
+      .post<ApiResponse<null>>(`${this.baseUrl}/deactivate`, {}, { withCredentials: true })
+      .pipe(tap(() => this.clearSession()));
+  }
+
+  /**
+   * Staff provisioning. Self-registration is PATIENT-only by design, so every
+   * non-patient account is created here — the API enforces SUPER_ADMIN/ADMIN and
+   * pins an ADMIN's staff to their own organization.
+   */
+  createStaff(payload: CreateStaffRequest): Observable<ApiResponse<CreateStaffResponseData>> {
+    return this.http.post<ApiResponse<CreateStaffResponseData>>(`${this.baseUrl}/staff`, payload);
+  }
+
   /** Clears local session state without calling the API (used after a failed refresh). */
   clearSession(): void {
     this.accessToken = null;
     this._currentUser.set(null);
+    this._permissions.set([]);
     sessionStorage.removeItem(ACCESS_TOKEN_KEY);
     sessionStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(PERMISSIONS_KEY);
   }
 
   setSession(data: LoginResponseData): void {
@@ -136,12 +222,20 @@ export class AuthService {
     this._currentUser.set(data.user);
     sessionStorage.setItem(ACCESS_TOKEN_KEY, data.accessToken);
     sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    // A fresh login says nothing about permissions — drop any list left over from a
+    // previous account rather than carrying it across the switch.
+    this.setPermissions([]);
   }
 
   updateCurrentUser(patch: Partial<CurrentUser>): void {
     const merged = { ...this._currentUser(), ...patch } as CurrentUser;
     this._currentUser.set(merged);
     sessionStorage.setItem(USER_KEY, JSON.stringify(merged));
+  }
+
+  private setPermissions(permissions: readonly string[]): void {
+    this._permissions.set(permissions);
+    sessionStorage.setItem(PERMISSIONS_KEY, JSON.stringify(permissions));
   }
 
   private readStoredUser(): CurrentUser | null {
@@ -151,6 +245,17 @@ export class AuthService {
       return JSON.parse(raw) as CurrentUser;
     } catch {
       return null;
+    }
+  }
+
+  private readStoredPermissions(): readonly string[] {
+    const raw = sessionStorage.getItem(PERMISSIONS_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      return [];
     }
   }
 }

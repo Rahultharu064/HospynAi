@@ -14,7 +14,7 @@ import { passwordMatchValidator, passwordStrengthValidator } from '../../../../s
     <h1 class="mb-1 font-display text-xl font-semibold text-gray-900">Set a new password</h1>
     <p class="mb-6 text-sm text-gray-500">Choose a strong password you haven't used before.</p>
 
-    @if (!token) {
+    @if (!token || !email) {
       <p class="rounded-md bg-danger-50 p-3 text-sm text-danger-700">
         This reset link is invalid or has expired. Please request a new one.
       </p>
@@ -54,7 +54,10 @@ export class ResetPasswordComponent {
   private route = inject(ActivatedRoute);
   private toast = inject(ToastService);
 
+  // Both arrive from the verify-code step. The API scopes a reset code to the account
+  // it was issued to, so the email is as load-bearing as the code itself.
   token = this.route.snapshot.queryParamMap.get('token') ?? '';
+  email = this.route.snapshot.queryParamMap.get('email') ?? '';
   loading = signal(false);
 
   form = this.fb.nonNullable.group(
@@ -70,14 +73,14 @@ export class ResetPasswordComponent {
   }
 
   submit(): void {
-    if (this.form.invalid || !this.token) {
+    if (this.form.invalid || !this.token || !this.email) {
       this.form.markAllAsTouched();
       return;
     }
 
     this.loading.set(true);
     this.authService
-      .resetPassword({ token: this.token, ...this.form.getRawValue() })
+      .resetPassword({ email: this.email, token: this.token, ...this.form.getRawValue() })
       .subscribe({
         next: () => {
           this.loading.set(false);
