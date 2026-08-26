@@ -64,6 +64,11 @@ router.get(
   PatientController.stats
 );
 
+// Get the signed-in user's own patient record.
+// Self-scoped by construction, so it needs no role gate — but it must be declared
+// before '/:id' or Express matches "me" as an id and the cuid validator rejects it.
+router.get('/me', PatientController.me);
+
 // Bulk import patients
 router.post(
   '/bulk',

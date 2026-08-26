@@ -44,6 +44,20 @@ export class PatientController {
     });
   });
 
+  // GET /api/v1/patients/me
+  static me = AsyncHandler.handle(async (req: Request, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) throw new UnauthorizedError();
+
+    const patient = await PatientService.getPatientForUser(userId);
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      data: patient,
+    });
+  });
+
   // GET /api/v1/patients/:id
   static getById = AsyncHandler.handle(async (req: Request, res: Response) => {
     const { id } = req.params;

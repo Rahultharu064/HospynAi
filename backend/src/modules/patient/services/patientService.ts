@@ -150,6 +150,45 @@ export class PatientService {
 
   /**
    * ============================================
+   * RESOLVE THE CLINICAL RECORD OF THE SIGNED-IN USER
+   * ============================================
+   *
+   * A `User` row with role PATIENT and a `Patient` row are separate records with no
+   * foreign key between them, so a patient who signs in has no way to reach their own
+   * chart. Email is the only shared identifier both carry, so it is what we match on.
+   *
+   * This is an interim resolver. The durable fix is a nullable `userId` on `Patient`
+   * populated at registration; until then a patient whose chart was filed under a
+   * different address than the one they signed up with will not resolve.
+   */
+  static async getPatientForUser(userId: string): Promise<PatientResponse> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+
+    if (!user?.email) {
+      throw new NotFoundError('No patient record is linked to this account');
+    }
+
+    const patient = await prisma.patient.findFirst({
+      where: {
+        email: { equals: user.email, mode: 'insensitive' },
+        deletedAt: null,
+      },
+      include: this.getPatientInclude(),
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!patient) {
+      throw new NotFoundError('No patient record is linked to this account');
+    }
+
+    return this.formatPatientResponse(patient);
+  }
+
+  /**
+   * ============================================
    * LIST PATIENTS WITH FILTERING & PAGINATION
    * ============================================
    */

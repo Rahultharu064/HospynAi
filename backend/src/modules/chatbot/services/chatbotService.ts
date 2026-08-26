@@ -1,19 +1,74 @@
 import { v4 as uuidv4 } from 'uuid';
-import { AppointmentType } from '@prisma/client';
+import { AppointmentType, UserRole } from '@prisma/client';
 import prisma from '../../../config/prisma';
 import { whisperClient } from '../../../integration/ai/wishperClient';
 import { llmClient, ChatMessage } from '../../../integration/ai/aiClient';
 import { vectorlessRagClient } from '../../../integration/ai/vectorlessRagClient';
 import { AppointmentService } from '../../appoinment/services/appointmentService';
 import { ChatMessageInput, AudioMessageInput, ChatHistoryInput } from '../validators/chatbotValidator';
-import { BadRequestError } from '../../../utils/errors';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../../utils/errors';
 import {
   ChatResponse, AudioChatResponse, ChatHistoryResponse,
   SuggestedAction,
 } from '../../../types/chatbotTypes';
 import logger from '../../../utils/logger';
 
+/** Roles that may pull a patient's clinical context into a conversation. */
+const CLINICAL_ROLES: UserRole[] = [
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN,
+  UserRole.DOCTOR,
+  UserRole.NURSE,
+  UserRole.RECEPTIONIST,
+  UserRole.PHARMACIST,
+  UserRole.LAB_TECHNICIAN,
+];
+
 export class ChatbotService {
+  /**
+   * `patientId` arrives from the caller (or from a tool argument the model inferred
+   * out of user text), and the record behind it holds allergies, chronic conditions
+   * and medications. Nothing about being signed in earns you a stranger's chart, so
+   * every read of it goes through here first.
+   */
+  private static async assertPatientAccess(userId: string, patientId: string): Promise<void> {
+    const [user, patient] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true, email: true, organizationId: true },
+      }),
+      prisma.patient.findUnique({
+        where: { id: patientId },
+        select: { email: true, organizationId: true, deletedAt: true },
+      }),
+    ]);
+
+    if (!user) throw new ForbiddenError('You do not have access to this patient record');
+    if (!patient || patient.deletedAt) throw new NotFoundError('Patient not found');
+
+    if (CLINICAL_ROLES.includes(user.role)) {
+      // Staff stay inside their own tenant when both sides declare one.
+      if (
+        user.organizationId &&
+        patient.organizationId &&
+        user.organizationId !== patient.organizationId
+      ) {
+        throw new ForbiddenError('You do not have access to this patient record');
+      }
+      return;
+    }
+
+    // Patients reach exactly one chart: the one filed under their own address.
+    // Email is the only identifier User and Patient share — see
+    // PatientService.getPatientForUser for the same interim link.
+    const sameEmail =
+      !!user.email && !!patient.email && user.email.toLowerCase() === patient.email.toLowerCase();
+
+    if (!sameEmail) {
+      throw new ForbiddenError('You do not have access to this patient record');
+    }
+  }
+
   static async processTextMessage(
     data: ChatMessageInput,
     userId: string,
@@ -30,6 +85,8 @@ export class ChatbotService {
 
     let patientContext: any = {};
     if (data.patientId) {
+      await this.assertPatientAccess(userId, data.patientId);
+
       const patient = await prisma.patient.findUnique({
         where: { id: data.patientId },
         select: {
@@ -41,7 +98,7 @@ export class ChatbotService {
       if (patient) patientContext = { patient };
     }
 
-    const history = await this.getRecentHistory(sessionId, 10);
+    const history = await this.getRecentHistory(sessionId, userId, 10);
 
     let knowledgeContext = '';
     try {
@@ -223,7 +280,7 @@ export class ChatbotService {
 
     try {
       const systemPrompt = llmClient.getSystemPrompt(data.context || 'GENERAL');
-      const history = await this.getRecentHistory(sessionId, 5);
+      const history = await this.getRecentHistory(sessionId, userId, 5);
 
       const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }];
 
@@ -269,12 +326,24 @@ export class ChatbotService {
     }
   }
 
-  static async getChatHistory(query: ChatHistoryInput): Promise<ChatHistoryResponse> {
+  /**
+   * Scoped to the caller. `sessionId` is a client-supplied uuid, so without the
+   * userId filter anyone holding (or guessing) one could read someone else's
+   * conversation — and these transcripts discuss symptoms and medications.
+   * Staff who pass a `patientId` are checked against that chart first.
+   */
+  static async getChatHistory(query: ChatHistoryInput, userId: string): Promise<ChatHistoryResponse> {
     const { sessionId, patientId, page = 1, limit = 50 } = query;
 
-    const where: any = {};
+    const where: any = { userId };
     if (sessionId) where.sessionId = sessionId;
-    if (patientId) where.patientId = patientId;
+    if (patientId) {
+      await this.assertPatientAccess(userId, patientId);
+      where.patientId = patientId;
+      // A clinician asking for a chart's history wants every conversation about
+      // that patient, not only the ones they personally typed.
+      delete where.userId;
+    }
 
     const skip = (page - 1) * limit;
 
@@ -301,13 +370,23 @@ export class ChatbotService {
     };
   }
 
-  static async clearHistory(sessionId?: string, patientId?: string): Promise<void> {
-    const where: any = {};
-    if (sessionId) where.sessionId = sessionId;
-    if (patientId) where.patientId = patientId;
+  static async clearHistory(userId: string, sessionId?: string, patientId?: string): Promise<void> {
+    if (!sessionId && !patientId) {
+      throw new BadRequestError('Provide a sessionId or patientId to clear.');
+    }
 
-    await prisma.conversationHistory.deleteMany({ where });
-    logger.info(`Chat history cleared: session=${sessionId}, patient=${patientId}`);
+    const where: any = { userId };
+    if (sessionId) where.sessionId = sessionId;
+    if (patientId) {
+      await this.assertPatientAccess(userId, patientId);
+      where.patientId = patientId;
+      delete where.userId;
+    }
+
+    const { count } = await prisma.conversationHistory.deleteMany({ where });
+    logger.info(
+      `Chat history cleared by ${userId}: session=${sessionId}, patient=${patientId}, removed=${count}`
+    );
   }
 
   static async getChatStats(): Promise<any> {
@@ -336,9 +415,13 @@ export class ChatbotService {
     };
   }
 
-  private static async getRecentHistory(sessionId: string, limit: number): Promise<any[]> {
+  private static async getRecentHistory(
+    sessionId: string,
+    userId: string,
+    limit: number
+  ): Promise<any[]> {
     return prisma.conversationHistory.findMany({
-      where: { sessionId },
+      where: { sessionId, userId },
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: { role: true, content: true },
@@ -378,12 +461,16 @@ export class ChatbotService {
         );
 
       case 'check_drug_interactions': {
-        const patient = args.patientId
-          ? await prisma.patient.findUnique({
-              where: { id: args.patientId },
-              select: { currentMedications: true, allergies: true, firstName: true },
-            })
-          : null;
+        // The model chose this id from free text, so it gets the same gate as a
+        // caller-supplied one before any medication list comes back.
+        let patient = null;
+        if (args.patientId) {
+          await this.assertPatientAccess(userId, args.patientId);
+          patient = await prisma.patient.findUnique({
+            where: { id: args.patientId },
+            select: { currentMedications: true, allergies: true, firstName: true },
+          });
+        }
 
         const currentMeds = patient?.currentMedications || [];
         const drugName = args.drugName || '';

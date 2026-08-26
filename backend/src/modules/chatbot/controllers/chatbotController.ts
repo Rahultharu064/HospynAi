@@ -56,14 +56,20 @@ export class ChatbotController {
   // GET /api/v1/chatbot/history
   static getHistory = AsyncHandler.handle(async (req: Request, res: Response) => {
     const query: ChatHistoryInput = req.query as any;
-    const result = await ChatbotService.getChatHistory(query);
+    const userId = req.user?.userId;
+    if (!userId) throw new UnauthorizedError();
+
+    const result = await ChatbotService.getChatHistory(query, userId);
     res.status(200).json({ success: true, status: 200, data: result });
   });
 
   // DELETE /api/v1/chatbot/history
   static clearHistory = AsyncHandler.handle(async (req: Request, res: Response) => {
     const dto: ClearHistoryInput = req.body;
-    await ChatbotService.clearHistory(dto.sessionId, dto.patientId);
+    const userId = req.user?.userId;
+    if (!userId) throw new UnauthorizedError();
+
+    await ChatbotService.clearHistory(userId, dto.sessionId, dto.patientId);
     res.status(200).json({ success: true, status: 200, message: 'History cleared' });
   });
 

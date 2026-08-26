@@ -23,6 +23,16 @@ export class PatientService {
     return this.http.get<PaginatedResponse<PatientResponse>>(this.baseUrl, { params: toHttpParams(query) });
   }
 
+  /**
+   * The clinical record belonging to the signed-in user. A patient's login and their
+   * chart are separate rows joined only by email, so this is the one way the app can
+   * turn "who is signed in" into the patientId that appointments and EMR need.
+   * 404s when no chart matches the account.
+   */
+  me(): Observable<ApiResponse<PatientResponse>> {
+    return this.http.get<ApiResponse<PatientResponse>>(`${this.baseUrl}/me`);
+  }
+
   getById(id: string): Observable<ApiResponse<PatientResponse>> {
     return this.http.get<ApiResponse<PatientResponse>>(`${this.baseUrl}/${id}`);
   }
