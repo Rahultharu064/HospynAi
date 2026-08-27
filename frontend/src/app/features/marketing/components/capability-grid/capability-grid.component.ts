@@ -26,23 +26,62 @@ interface Module {
           </p>
         </div>
 
-        <div class="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 relative">
+          <!-- background glow for the grid -->
+          <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 bg-teal-900/20 blur-[100px] rounded-full pointer-events-none"></div>
+          
           @for (module of modules; track module.title; let i = $index) {
             <div
               appScrollReveal
               [revealDelay]="(i % 3) * 90"
-              class="group mkt-panel relative overflow-hidden p-6 transition-all duration-moderate hover:-translate-y-1"
+              class="group relative overflow-hidden rounded-2xl p-[1px] transition-all duration-slower ease-out hover:-translate-y-2 hover:shadow-2xl"
               [class.hover:shadow-glow-teal]="module.accent === 'teal'"
               [class.hover:shadow-glow-indigo]="module.accent === 'indigo'"
             >
-              <div class="flex items-center justify-between">
-                <span class="text-2xl">{{ module.icon }}</span>
-                <span class="mkt-tag" [class.!text-teal-300]="module.accent === 'teal'" [class.!text-indigo-300]="module.accent === 'indigo'">
-                  {{ module.tag }}
-                </span>
+              <!-- Animated gradient border mask -->
+              <div class="absolute inset-0 bg-gradient-to-br opacity-50 group-hover:opacity-100 transition-opacity duration-slower"
+                   [class.from-teal-500]="module.accent === 'teal'"
+                   [class.to-teal-900]="module.accent === 'teal'"
+                   [class.from-indigo-500]="module.accent === 'indigo'"
+                   [class.to-indigo-900]="module.accent === 'indigo'"
+                   [class.via-navy-900]="true">
               </div>
-              <h3 class="mt-5 font-display text-lg font-semibold text-white">{{ module.title }}</h3>
-              <p class="mt-2 text-sm leading-relaxed text-gray-400">{{ module.description }}</p>
+              
+              <!-- Card content container -->
+              <div class="relative h-full mkt-panel bg-navy-950/95 backdrop-blur-xl p-8 rounded-2xl border-none">
+                <!-- Inner glow on hover -->
+                <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-0 group-hover:opacity-20 blur-2xl transition-all duration-slower"
+                     [class.bg-teal-400]="module.accent === 'teal'"
+                     [class.bg-indigo-400]="module.accent === 'indigo'">
+                </div>
+
+                <div class="flex items-center justify-between relative z-10">
+                  <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-navy-900 border transition-transform duration-moderate group-hover:scale-110"
+                       [class.border-teal-500/30]="module.accent === 'teal'"
+                       [class.border-indigo-500/30]="module.accent === 'indigo'">
+                    <span class="text-2xl">{{ module.icon }}</span>
+                  </div>
+                  <span class="mkt-tag transition-colors duration-moderate group-hover:bg-navy-800" 
+                        [class.!text-teal-300]="module.accent === 'teal'" 
+                        [class.!border-teal-500/50]="module.accent === 'teal'"
+                        [class.!text-indigo-300]="module.accent === 'indigo'"
+                        [class.!border-indigo-500/50]="module.accent === 'indigo'">
+                    {{ module.tag }}
+                  </span>
+                </div>
+                
+                <h3 class="mt-6 font-display text-xl font-semibold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r transition-all duration-moderate"
+                    [class.from-teal-300]="module.accent === 'teal'"
+                    [class.to-white]="module.accent === 'teal'"
+                    [class.from-indigo-300]="module.accent === 'indigo'"
+                    [class.to-white]="module.accent === 'indigo'">
+                  {{ module.title }}
+                </h3>
+                
+                <p class="mt-3 text-sm leading-relaxed text-gray-400 relative z-10">
+                  {{ module.description }}
+                </p>
+              </div>
             </div>
           }
         </div>

@@ -33,31 +33,39 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
     EmptyStateComponent
   ],
   template: `
-    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 class="font-display text-display-sm font-semibold text-gray-900">
-          {{ greeting() }}, {{ firstName() }} 👋
-        </h1>
-        <p class="mt-1 text-sm text-gray-500">
-          Here's what's happening at HospynAI today
-          <span class="mx-1 text-gray-300">·</span>
-          <span class="font-medium text-gray-600">{{ today() }}</span>
-        </p>
+    <div class="mb-8 rounded-3xl bg-navy-950 bg-console-grid bg-[length:40px_40px] p-6 text-white shadow-xl relative overflow-hidden sm:p-10 border border-navy-800">
+      <div class="pointer-events-none absolute right-0 top-0 h-80 w-80 -translate-y-1/3 translate-x-1/3 rounded-full bg-teal-500/20 blur-[80px]"></div>
+      <div class="pointer-events-none absolute bottom-0 left-0 h-64 w-64 -translate-x-1/3 translate-y-1/3 rounded-full bg-indigo-500/20 blur-[80px]"></div>
+      
+      <div class="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 class="font-display text-display-md font-semibold text-white tracking-tight">
+            {{ greeting() }}, {{ firstName() }} 👋
+          </h1>
+          <p class="mt-2 text-navy-200 text-lg flex items-center gap-2">
+            Here's your operational overview
+            <span class="text-navy-600">·</span>
+            <span class="font-medium text-teal-300">{{ today() }}</span>
+          </p>
+        </div>
+        <span class="inline-flex w-fit items-center gap-2 rounded-full border border-navy-700 bg-navy-900/80 backdrop-blur-md px-4 py-2 text-xs font-mono uppercase tracking-widest text-teal-300 shadow-glow-teal">
+          <span class="relative flex h-2 w-2">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75"></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-teal-400"></span>
+          </span>
+          {{ roleLabel() }}
+        </span>
       </div>
-      <span class="inline-flex w-fit items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
-        <span class="h-1.5 w-1.5 rounded-full bg-success-500"></span>
-        {{ roleLabel() }}
-      </span>
     </div>
 
     @if (canSeeAnalytics()) {
-      <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" appScrollReveal [revealDelay]="0">
+      <div class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4" appScrollReveal [revealDelay]="0">
         @if (loadingStats()) {
           @for (i of statSkeletons; track i) {
-            <div class="card animate-pulse p-5">
-              <div class="h-3 w-20 rounded bg-gray-100"></div>
-              <div class="mt-3 h-7 w-16 rounded bg-gray-100"></div>
-              <div class="mt-3 h-4 w-24 rounded bg-gray-100"></div>
+            <div class="card animate-pulse p-6">
+              <div class="h-4 w-24 rounded bg-gray-100"></div>
+              <div class="mt-4 h-8 w-20 rounded bg-gray-100"></div>
+              <div class="mt-4 h-4 w-32 rounded bg-gray-100"></div>
             </div>
           }
         } @else if (stats(); as s) {
@@ -89,15 +97,16 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
             [delta]="s.overview.revenueGrowth"
           />
         } @else {
-          <div class="card col-span-full p-5 text-center text-sm text-gray-500">
-            Couldn't load today's numbers. Try refreshing the page.
+          <div class="card col-span-full p-8 text-center text-sm text-gray-500 border-dashed border-2 bg-gray-50/50">
+            <span class="text-2xl mb-2 block">📡</span>
+            Couldn't load telemetry data. Try refreshing the view.
           </div>
         }
       </div>
     }
 
     @if (canSeeSchedule()) {
-      <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3" appScrollReveal [revealDelay]="80">
+      <div class="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3" appScrollReveal [revealDelay]="80">
         <div class="lg:col-span-2">
           <app-today-schedule [appointments]="todayAppointments()" [loading]="loadingSchedule()" />
         </div>
@@ -108,23 +117,25 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
     }
 
     @if (isPatient()) {
-      <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3" appScrollReveal [revealDelay]="80">
-        <div class="lg:col-span-2 card p-5 flex flex-col h-full">
-          <div class="flex items-center justify-between mb-4">
+      <div class="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3" appScrollReveal [revealDelay]="80">
+        <div class="lg:col-span-2 card p-6 flex flex-col h-full hover:shadow-md transition-shadow duration-moderate">
+          <div class="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
             <div>
-              <h2 class="font-display text-base font-semibold text-gray-900">Upcoming Appointments</h2>
-              <p class="text-xs text-gray-500">Your scheduled visits</p>
+              <h2 class="font-display text-lg font-semibold text-gray-900">Upcoming Appointments</h2>
+              <p class="text-sm text-gray-500 mt-1">Your scheduled clinical visits</p>
             </div>
-            <a routerLink="/appointments/new" class="text-xs font-semibold text-navy-600 hover:text-navy-700">+ Book New</a>
+            <a routerLink="/appointments/new" class="btn-primary text-xs py-2 px-4 shadow-sm hover:shadow-md transition-all group">
+              <span class="group-hover:scale-110 transition-transform">📅</span> Book New
+            </a>
           </div>
           
           <div class="flex-1">
             @if (loadingSchedule()) {
-              <ul class="space-y-3" aria-hidden="true">
+              <ul class="space-y-4" aria-hidden="true">
                 @for (i of [1,2]; track i) {
-                  <li class="flex items-center gap-3 animate-pulse">
-                    <div class="h-10 w-14 shrink-0 rounded-md bg-gray-100"></div>
-                    <div class="h-10 flex-1 rounded-md bg-gray-100"></div>
+                  <li class="flex items-center gap-4 animate-pulse">
+                    <div class="h-12 w-16 shrink-0 rounded-lg bg-gray-100"></div>
+                    <div class="h-12 flex-1 rounded-lg bg-gray-100"></div>
                   </li>
                 }
               </ul>
@@ -133,17 +144,20 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
             } @else {
               <ul class="divide-y divide-gray-100">
                 @for (apt of todayAppointments(); track apt.id) {
-                  <li class="flex items-center gap-3 rounded-md px-1.5 py-2.5">
-                    <div class="w-20 shrink-0 text-center flex flex-col items-center">
-                      <p class="font-mono text-xs font-semibold text-gray-700">{{ apt.date | date:'MMM d' }}</p>
-                      <p class="font-mono text-[10px] text-gray-500">{{ apt.startTime }}</p>
+                  <li class="group flex items-center gap-4 rounded-xl px-2 py-3 hover:bg-gray-50 transition-colors duration-fast">
+                    <div class="w-20 shrink-0 text-center flex flex-col items-center bg-white border border-gray-100 rounded-lg py-2 shadow-sm group-hover:border-navy-200 transition-colors">
+                      <p class="font-mono text-xs font-semibold text-navy-700">{{ apt.date | date:'MMM d' }}</p>
+                      <p class="font-mono text-[10px] text-gray-500 mt-0.5">{{ apt.startTime }}</p>
                     </div>
-                    <div class="h-8 w-0.5 shrink-0 rounded-full bg-navy-400"></div>
+                    <div class="h-10 w-0.5 shrink-0 rounded-full bg-gradient-to-b from-teal-400 to-navy-500"></div>
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium text-gray-900">Dr. {{ apt.doctor.firstName }} {{ apt.doctor.lastName }}</p>
-                      <p class="truncate text-xs text-gray-500">{{ apt.doctor.specialization || 'General Consultation' }} · {{ apt.type }}</p>
+                      <p class="truncate text-base font-semibold text-gray-900">Dr. {{ apt.doctor.firstName }} {{ apt.doctor.lastName }}</p>
+                      <p class="truncate text-sm text-gray-500 flex items-center gap-1.5 mt-0.5">
+                        <span class="h-1.5 w-1.5 rounded-full bg-gray-300"></span>
+                        {{ apt.doctor.specialization || 'General Consultation' }} · {{ apt.type }}
+                      </p>
                     </div>
-                    <app-badge [status]="apt.status" />
+                    <app-badge [status]="apt.status" class="scale-95 group-hover:scale-100 transition-transform" />
                   </li>
                 }
               </ul>
@@ -151,45 +165,62 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
           </div>
         </div>
 
-        <div class="card p-5 bg-gradient-to-br from-navy-600 to-navy-800 text-white flex flex-col justify-center items-center text-center">
-          <div class="h-14 w-14 rounded-full bg-white/20 flex items-center justify-center text-2xl mb-4 backdrop-blur-sm">
-            🛡️
+        <div class="card p-8 bg-gradient-to-br from-navy-950 via-navy-900 to-indigo-950 text-white flex flex-col justify-center items-center text-center relative overflow-hidden group shadow-xl border-navy-800 hover:border-teal-500/50 transition-all duration-slower">
+          <div class="absolute inset-0 bg-console-grid opacity-30 pointer-events-none mix-blend-overlay"></div>
+          <div class="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-teal-500/20 blur-3xl group-hover:bg-teal-400/30 transition-colors duration-slower pointer-events-none"></div>
+          
+          <div class="relative z-10 w-full flex flex-col items-center">
+            <div class="h-20 w-20 rounded-2xl bg-white/5 flex items-center justify-center text-4xl mb-6 backdrop-blur-md shadow-glow-indigo border border-white/10 group-hover:scale-110 transition-transform duration-moderate">
+              🏥
+            </div>
+            <h3 class="font-display font-semibold text-2xl mb-3 text-white tracking-tight">Health Passport</h3>
+            <p class="text-sm text-navy-200 mb-8 max-w-[250px] leading-relaxed">Secure, blockchain-anchored access to your medical history and clinical records.</p>
+            <a routerLink="/emr" class="inline-flex w-full justify-center items-center gap-2 rounded-xl bg-teal-400 px-6 py-3.5 text-sm font-semibold text-navy-950 shadow-glow-teal transition-all duration-moderate hover:bg-teal-300 hover:scale-[1.02] active:scale-95">
+              Access Vault
+              <span class="font-mono" aria-hidden="true">→</span>
+            </a>
           </div>
-          <h3 class="font-display font-semibold text-lg mb-2">Health Passport</h3>
-          <p class="text-sm text-navy-100 mb-6">Access your digital medical records, lab results, and prescriptions.</p>
-          <a routerLink="/emr" class="w-full rounded-md bg-white px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition-colors hover:bg-gray-50">
-            View My Records
-          </a>
         </div>
       </div>
     }
 
     @if (!canSeeAnalytics() && !canSeeSchedule() && !isPatient()) {
-      <div class="card mb-6 flex flex-col items-start gap-2 p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div class="card mb-8 flex flex-col items-start gap-4 p-8 sm:flex-row sm:items-center sm:justify-between bg-gradient-to-r from-white to-gray-50 border-gray-200 shadow-sm">
         <div>
-          <p class="font-display text-base font-semibold text-gray-900">Everything in one place</p>
-          <p class="mt-1 text-sm text-gray-500">Use the shortcuts below to navigate through the system.</p>
+          <p class="font-display text-xl font-semibold text-gray-900">Unified System Console</p>
+          <p class="mt-2 text-sm text-gray-500 max-w-lg">Access operational modules, clinical records, and analytics through the shortcuts below.</p>
         </div>
-        <span class="text-3xl">🩺</span>
+        <div class="h-16 w-16 rounded-full bg-navy-50 flex items-center justify-center text-3xl shadow-inner border border-navy-100">
+          ⚙️
+        </div>
       </div>
     }
 
-    <div>
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">Quick actions</h2>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" appScrollReveal [revealDelay]="160">
+    <div class="mt-2 pb-8">
+      <h2 class="mb-5 text-xs font-mono font-semibold uppercase tracking-[0.2em] text-gray-500 flex items-center gap-3">
+        System Modules
+        <div class="h-px flex-1 bg-gray-200"></div>
+      </h2>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" appScrollReveal [revealDelay]="160">
         @for (item of quickLinks(); track item.path) {
           <a
             [routerLink]="item.path"
-            class="card group flex items-center gap-4 p-5 transition-all duration-moderate ease-default hover:-translate-y-0.5 hover:border-navy-200 hover:shadow-md"
+            class="card group relative flex items-center gap-4 p-5 overflow-hidden transition-all duration-moderate ease-default hover:-translate-y-1 hover:border-navy-300 hover:shadow-lg bg-white"
           >
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-xl transition-colors duration-fast group-hover:bg-navy-50">
+            <div class="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-teal-500/0 blur-xl group-hover:bg-teal-500/10 transition-colors duration-moderate pointer-events-none"></div>
+            
+            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gray-50 border border-gray-100 text-2xl transition-all duration-moderate group-hover:bg-navy-50 group-hover:border-navy-200 group-hover:scale-110 group-hover:shadow-sm">
               {{ item.icon }}
             </div>
-            <div class="min-w-0 flex-1">
-              <p class="font-medium text-gray-900">{{ item.label }}</p>
-              <p class="truncate text-xs text-gray-500">{{ item.description }}</p>
+            <div class="min-w-0 flex-1 relative z-10">
+              <p class="font-display font-semibold text-gray-900 group-hover:text-navy-700 transition-colors">{{ item.label }}</p>
+              <p class="truncate text-xs text-gray-500 mt-1">{{ item.description }}</p>
             </div>
-            <span class="shrink-0 text-gray-300 transition-transform duration-fast group-hover:translate-x-0.5 group-hover:text-navy-500" aria-hidden="true">→</span>
+            <span class="relative z-10 shrink-0 text-gray-300 transition-all duration-moderate group-hover:translate-x-1 group-hover:text-teal-500" aria-hidden="true">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </span>
           </a>
         }
       </div>
