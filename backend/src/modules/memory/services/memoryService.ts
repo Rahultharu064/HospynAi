@@ -216,7 +216,9 @@ export class MemoryService {
 
     // Delete from Qdrant if embedding exists
     if (memory.embeddingId) {
-      await qdrantService.deleteVectors([memory.embeddingId]).catch(() => {});
+      await qdrantService.deleteVectors([memory.embeddingId]).catch((error) => {
+        logger.warn(`Failed to delete vector for memory ${id} from Qdrant: ${error.message}`);
+      });
     }
 
     await prisma.aiMemory.delete({ where: { id } });

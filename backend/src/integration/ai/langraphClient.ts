@@ -509,14 +509,7 @@ export class LangGraphAgent {
         ? response.content 
         : JSON.stringify(response.content);
       
-      let analysis;
-      try {
-        // Extract JSON from response
-        const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-        analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : { intent: "GENERAL_INQUIRY", needsTools: false };
-      } catch {
-        analysis = { intent: "GENERAL_INQUIRY", needsTools: false, urgency: "routine" };
-      }
+      const analysis = parseAIJSON(analysisText, { intent: "GENERAL_INQUIRY", needsTools: false, urgency: "routine" });
 
       return {
         intent: analysis.intent || "GENERAL_INQUIRY",
@@ -565,13 +558,7 @@ export class LangGraphAgent {
         ? response.content 
         : JSON.stringify(response.content);
 
-      let toolNames: string[] = [];
-      try {
-        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-        toolNames = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-      } catch {
-        toolNames = [];
-      }
+      let toolNames: string[] = parseAIJSON(responseText, []);
 
       // Map intents to default tools if none planned
       if (toolNames.length === 0) {
@@ -627,13 +614,7 @@ export class LangGraphAgent {
           ? response.content 
           : JSON.stringify(response.content);
 
-        let params;
-        try {
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          params = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-        } catch {
-          params = {};
-        }
+        const params = parseAIJSON(responseText, {} as Record<string, any>);
 
         // Add patientId from state if not in extracted params
         if (state.patientId && !params.patientId) {
