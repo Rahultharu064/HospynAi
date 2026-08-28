@@ -13,6 +13,19 @@ import { vectorlessRagClient } from "./vectorlessRagClient";
 // ============================================
 
 /**
+ * Helper to safely parse JSON from AI responses that might contain markdown formatting
+ */
+function parseAIJSON<T>(text: string, defaultValue: T): T {
+  try {
+    const cleanedText = text.replace(/```(?:json)?\n?/g, '').replace(/```\n?/g, '').trim();
+    return JSON.parse(cleanedText) as T;
+  } catch (error) {
+    logger.warn(`Failed to parse AI JSON response. Falling back to default. Error: ${(error as Error).message}`);
+    return defaultValue;
+  }
+}
+
+/**
  * Agent state that flows through the graph
  */
 const AgentState = Annotation.Root({

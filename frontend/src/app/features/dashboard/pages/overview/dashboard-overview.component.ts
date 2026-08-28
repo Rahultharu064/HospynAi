@@ -146,7 +146,7 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
                 @for (apt of todayAppointments(); track apt.id) {
                   <li class="group flex items-center gap-4 rounded-xl px-2 py-3 hover:bg-gray-50 transition-colors duration-fast">
                     <div class="w-20 shrink-0 text-center flex flex-col items-center bg-white border border-gray-100 rounded-lg py-2 shadow-sm group-hover:border-navy-200 transition-colors">
-                      <p class="font-mono text-xs font-semibold text-navy-700">{{ apt.date | date:'MMM d' }}</p>
+                      <p class="font-mono text-xs font-semibold text-navy-700">{{ apt.appointmentDate | date:'MMM d' }}</p>
                       <p class="font-mono text-[10px] text-gray-500 mt-0.5">{{ apt.startTime }}</p>
                     </div>
                     <div class="h-10 w-0.5 shrink-0 rounded-full bg-gradient-to-b from-teal-400 to-navy-500"></div>
