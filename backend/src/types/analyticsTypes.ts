@@ -80,6 +80,7 @@ export interface RevenueAnalytics {
 export interface AiAnalytics {
   totalVoiceInteractions: number;
   totalCalls: number;
+  totalAgentTasks: number;
   aiResolvedCalls: number;
   handoffRate: number;
   averageConfidence: number;

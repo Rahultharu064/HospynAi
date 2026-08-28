@@ -469,12 +469,14 @@ export class AnalyticsService {
     const [
       totalVoice,
       totalCalls,
+      totalAgentTasks,
       aiResolved,
       voiceTypes,
       callOutcomes,
     ] = await Promise.all([
       prisma.voiceLog.count({ where }),
       prisma.callLog.count({ where }),
+      prisma.agentLog.count({ where }),
       prisma.callLog.count({ where: { ...where, outcome: 'AI_RESOLVED' } }),
 
       prisma.voiceLog.groupBy({ by: ['interactionType'], where, _count: true }),
@@ -490,6 +492,7 @@ export class AnalyticsService {
     return {
       totalVoiceInteractions: totalVoice,
       totalCalls,
+      totalAgentTasks,
       aiResolvedCalls: aiResolved,
       handoffRate: totalCalls > 0 ? ((totalCalls - aiResolved) / totalCalls) * 100 : 0,
       averageConfidence: 0.92,

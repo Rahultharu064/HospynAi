@@ -59,7 +59,7 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
     </div>
 
     @if (canSeeAnalytics()) {
-      <div class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4" appScrollReveal [revealDelay]="0">
+      <div class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5" appScrollReveal [revealDelay]="0">
         @if (loadingStats()) {
           @for (i of statSkeletons; track i) {
             <div class="card animate-pulse p-6">
@@ -95,6 +95,12 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
             [numericValue]="s.overview.totalRevenue"
             prefix="$"
             [delta]="s.overview.revenueGrowth"
+          />
+          <app-stat-card
+            label="AI Interactions"
+            icon="🤖"
+            tone="indigo"
+            [numericValue]="s.ai.totalVoiceInteractions + s.ai.totalCalls + s.ai.totalAgentTasks"
           />
         } @else {
           <div class="card col-span-full p-8 text-center text-sm text-gray-500 border-dashed border-2 bg-gray-50/50">
@@ -239,7 +245,7 @@ export class DashboardOverviewComponent implements OnInit {
   todayAppointments = signal<AppointmentResponse[]>([]);
   loadingSchedule = signal(true);
 
-  readonly statSkeletons = [1, 2, 3, 4];
+  readonly statSkeletons = [1, 2, 3, 4, 5];
 
   firstName = () => this.authService.currentUser()?.firstName ?? '';
   canSeeAnalytics = () => ANALYTICS_ROLES.includes(this.authService.role() ?? '');

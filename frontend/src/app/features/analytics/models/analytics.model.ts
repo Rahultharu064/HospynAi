@@ -40,9 +40,27 @@ export interface PatientAnalytics {
   ageDistribution: Record<string, number>;
 }
 
+export interface AiAnalytics {
+  totalVoiceInteractions: number;
+  totalCalls: number;
+  totalAgentTasks: number;
+  aiResolvedCalls: number;
+  handoffRate: number;
+  averageConfidence: number;
+  callSuccessRate: number;
+  missedCallRate: number;
+  escalationRate: number;
+  voiceInteractionTypes: Record<string, number>;
+  callOutcomes: Record<string, number>;
+  dailyCallVolume: { date: string; count: number }[];
+  agentTaskCompletion: number;
+  averageResponseTime: number;
+}
+
 export interface DashboardStats {
   overview: OverviewStats;
   appointments: AppointmentAnalytics;
   patients: PatientAnalytics;
   revenue: RevenueAnalytics;
+  ai: AiAnalytics;
 }
