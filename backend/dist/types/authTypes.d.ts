@@ -6,11 +6,18 @@ export interface RegisterUserDto {
     firstName: string;
     lastName: string;
     phone?: string | null;
-    role?: UserRole;
-    organizationId?: string;
-    branchId?: string;
     acceptTerms: boolean;
     acceptPrivacy: boolean;
+}
+/** Privileged staff provisioning — only reachable behind authorize(SUPER_ADMIN, ADMIN). */
+export interface CreateStaffUserDto {
+    email: string;
+    firstName: string;
+    lastName: string;
+    phone?: string | null;
+    role: UserRole;
+    organizationId?: string;
+    branchId?: string;
 }
 export interface LoginUserDto {
     email: string;
@@ -26,6 +33,8 @@ export interface ForgotPasswordDto {
     email: string;
 }
 export interface ResetPasswordDto {
+    /** Scopes the code lookup to one account — see AuthService.resetPassword. */
+    email: string;
     token: string;
     newPassword: string;
     confirmPassword: string;
@@ -58,6 +67,8 @@ export interface TokenPayload {
 export interface AuthTokens {
     accessToken: string;
     refreshToken: string;
+    /** Absolute expiry of the refresh token — drives the cookie's maxAge so the two can't drift. */
+    refreshTokenExpiresAt: Date;
     expiresIn: number;
 }
 export interface UserProfile {

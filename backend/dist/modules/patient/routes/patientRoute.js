@@ -29,6 +29,10 @@ router.post('/', createPatientLimiter, (0, validateMiddleware_1.validate)({ body
 router.get('/', (0, validateMiddleware_1.validate)({ query: patientValidator_1.patientQuerySchema.shape.query }), (0, authMiddleware_1.authorize)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.DOCTOR, client_1.UserRole.NURSE, client_1.UserRole.RECEPTIONIST), patientController_1.PatientController.list);
 // Get patient statistics
 router.get('/stats', (0, authMiddleware_1.authorize)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), patientController_1.PatientController.stats);
+// Get the signed-in user's own patient record.
+// Self-scoped by construction, so it needs no role gate — but it must be declared
+// before '/:id' or Express matches "me" as an id and the cuid validator rejects it.
+router.get('/me', patientController_1.PatientController.me);
 // Bulk import patients
 router.post('/bulk', bulkImportLimiter, (0, validateMiddleware_1.validate)({ body: patientValidator_1.bulkImportSchema.shape.body }), (0, authMiddleware_1.authorize)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), patientController_1.PatientController.bulkImport);
 // Get patient by public patient ID (must be before :id route)

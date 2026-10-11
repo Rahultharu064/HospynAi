@@ -118,7 +118,7 @@ function setupChatbotSocket(io) {
                     patientId: data.patientId,
                     page: 1,
                     limit: 50,
-                });
+                }, user.userId);
                 socket.emit('chat-history', history);
             }
             catch (error) {
@@ -130,7 +130,7 @@ function setupChatbotSocket(io) {
          */
         socket.on('clear-history', async (data) => {
             try {
-                await chatbotService_1.ChatbotService.clearHistory(data.sessionId, data.patientId);
+                await chatbotService_1.ChatbotService.clearHistory(user.userId, data.sessionId, data.patientId);
                 socket.emit('history-cleared', { success: true });
             }
             catch (error) {

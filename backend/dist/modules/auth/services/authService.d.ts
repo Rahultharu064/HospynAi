@@ -1,5 +1,5 @@
 import { UserRole } from '@prisma/client';
-import { RegisterInput, LoginInput, ResetPasswordInput, ChangePasswordInput, UpdateProfileInput } from '../validators/authValidator';
+import { RegisterInput, CreateStaffInput, LoginInput, ResetPasswordInput, ChangePasswordInput, UpdateProfileInput } from '../validators/authValidator';
 export declare class AuthService {
     /**
      * ============================================
@@ -8,11 +8,51 @@ export declare class AuthService {
      */
     /**
      * Register a new user
+     *
+     * Self-service registration always produces a PATIENT with no organization or
+     * branch. Role and tenancy are never read from `dto` — see registerSchema, which
+     * rejects those fields outright — because this endpoint is unauthenticated and
+     * anything it trusts is attacker-controlled. Staff accounts go through
+     * `createStaff` instead.
      */
     static register(dto: RegisterInput, ipAddress: string, userAgent: string): Promise<{
         userId: string;
         email: string;
         message: string;
+    }>;
+    /**
+     * Provision a staff account (ADMIN / SUPER_ADMIN only).
+     *
+     * This is the privileged path that `register` deliberately isn't: it is the only
+     * place a caller-supplied `role` is honoured, and it is only reachable behind
+     * `authenticate` + `authorize(SUPER_ADMIN, ADMIN)`.
+     *
+     * No password is set here. The invitee receives a PASSWORD_RESET code and chooses
+     * their own credential, so an invite never travels through a channel that also
+     * carries a usable password.
+     *
+     * An ADMIN is scoped to their own organization; only a SUPER_ADMIN may place a
+     * user into an arbitrary tenant.
+     */
+    static createStaff(dto: CreateStaffInput, actor: {
+        userId: string;
+        role: UserRole;
+        organizationId: string | null;
+    }, ipAddress: string, userAgent: string): Promise<{
+        userId: string;
+        email: string;
+        role: import(".prisma/client").$Enums.UserRole;
+        message: string;
+    }>;
+    /**
+     * Resolve the acting user's role and tenant from the database rather than trusting
+     * the JWT claims. A token minted before a role or org change would otherwise carry
+     * stale authority for its full 15-minute life.
+     */
+    static getActorContext(userId: string): Promise<{
+        userId: string;
+        role: import(".prisma/client").$Enums.UserRole;
+        organizationId: string | null;
     }>;
     /**
      * ============================================
@@ -83,9 +123,36 @@ export declare class AuthService {
      * ============================================
      */
     /**
-     * Verify OTP code
+     * Verify an OTP code.
+     *
+     * Verifying an email or a 2FA challenge is the final step of signing in, so it
+     * returns a real session (tokens + user) exactly like `login` does. It previously
+     * returned only a message, while the frontend called `setSession(res.data)` on the
+     * result — so a *successful* verification threw on `undefined.accessToken` and
+     * dropped the user on the dashboard with no session at all.
+     *
+     * PHONE_VERIFICATION and PASSWORD_RESET are not sign-in events and return no
+     * tokens: the former is a profile update, the latter only marks the code usable by
+     * `resetPassword`.
      */
     static verifyOtp(email: string, code: string, type: string, ipAddress: string, userAgent: string): Promise<{
+        message: string;
+        isEmailVerified: boolean;
+    } | {
+        tokens: import("../../../types/authTypes").AuthTokens;
+        user: {
+            id: string;
+            email: string;
+            firstName: string;
+            lastName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            avatarUrl: string | null;
+            isEmailVerified: boolean;
+            isPhoneVerified: boolean;
+            mfaEnabled: boolean;
+            organizationId: string | null;
+            branchId: string | null;
+        };
         message: string;
         isEmailVerified: boolean;
     }>;
@@ -113,7 +180,12 @@ export declare class AuthService {
         provider?: undefined;
     }>;
     /**
-     * Reset password with token
+     * Reset password with a verified reset code.
+     *
+     * The lookup is scoped to the account named by `dto.email`. It previously matched
+     * `code` across every user's live PASSWORD_RESET tokens, so a single guessed
+     * 6-digit code reset whichever account happened to hold it — the attacker didn't
+     * need to know, or even target, a specific user.
      */
     static resetPassword(dto: ResetPasswordInput, ipAddress: string, userAgent: string): Promise<{
         message: string;
@@ -238,7 +310,12 @@ export declare class AuthService {
      */
     private static validateUserStatus;
     /**
-     * Get recent failed login attempts count
+     * Count failed login attempts that still count against the lockout threshold.
+     *
+     * Only failures newer than the last successful login are counted, so signing in
+     * successfully clears the streak. The audit rows themselves are never deleted —
+     * they're the audit trail — the cutoff just stops stale failures from locking a
+     * user who has since logged in fine.
      */
     private static getRecentFailedLoginAttempts;
     /**

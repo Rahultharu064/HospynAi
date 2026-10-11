@@ -16,6 +16,19 @@ const vectorlessRagClient_1 = require("./vectorlessRagClient");
 // STATE DEFINITIONS
 // ============================================
 /**
+ * Helper to safely parse JSON from AI responses that might contain markdown formatting
+ */
+function parseAIJSON(text, defaultValue) {
+    try {
+        const cleanedText = text.replace(/```(?:json)?\n?/g, '').replace(/```\n?/g, '').trim();
+        return JSON.parse(cleanedText);
+    }
+    catch (error) {
+        logger_1.default.warn(`Failed to parse AI JSON response. Falling back to default. Error: ${error.message}`);
+        return defaultValue;
+    }
+}
+/**
  * Agent state that flows through the graph
  */
 const AgentState = langgraph_1.Annotation.Root({
@@ -467,15 +480,7 @@ class LangGraphAgent {
             const analysisText = typeof response.content === "string"
                 ? response.content
                 : JSON.stringify(response.content);
-            let analysis;
-            try {
-                // Extract JSON from response
-                const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-                analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : { intent: "GENERAL_INQUIRY", needsTools: false };
-            }
-            catch {
-                analysis = { intent: "GENERAL_INQUIRY", needsTools: false, urgency: "routine" };
-            }
+            const analysis = parseAIJSON(analysisText, { intent: "GENERAL_INQUIRY", needsTools: false, urgency: "routine" });
             return {
                 intent: analysis.intent || "GENERAL_INQUIRY",
                 status: "ANALYZED",
@@ -516,14 +521,7 @@ class LangGraphAgent {
             const responseText = typeof response.content === "string"
                 ? response.content
                 : JSON.stringify(response.content);
-            let toolNames = [];
-            try {
-                const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-                toolNames = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-            }
-            catch {
-                toolNames = [];
-            }
+            let toolNames = parseAIJSON(responseText, []);
             // Map intents to default tools if none planned
             if (toolNames.length === 0) {
                 const defaultTools = {
@@ -571,14 +569,7 @@ class LangGraphAgent {
                 const responseText = typeof response.content === "string"
                     ? response.content
                     : JSON.stringify(response.content);
-                let params;
-                try {
-                    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-                    params = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-                }
-                catch {
-                    params = {};
-                }
+                const params = parseAIJSON(responseText, {});
                 // Add patientId from state if not in extracted params
                 if (state.patientId && !params.patientId) {
                     params.patientId = state.patientId;

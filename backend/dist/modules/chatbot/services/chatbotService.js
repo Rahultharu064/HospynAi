@@ -46,7 +46,55 @@ const vectorlessRagClient_1 = require("../../../integration/ai/vectorlessRagClie
 const appointmentService_1 = require("../../appoinment/services/appointmentService");
 const errors_1 = require("../../../utils/errors");
 const logger_1 = __importDefault(require("../../../utils/logger"));
+/** Roles that may pull a patient's clinical context into a conversation. */
+const CLINICAL_ROLES = [
+    client_1.UserRole.SUPER_ADMIN,
+    client_1.UserRole.ADMIN,
+    client_1.UserRole.DOCTOR,
+    client_1.UserRole.NURSE,
+    client_1.UserRole.RECEPTIONIST,
+    client_1.UserRole.PHARMACIST,
+    client_1.UserRole.LAB_TECHNICIAN,
+];
 class ChatbotService {
+    /**
+     * `patientId` arrives from the caller (or from a tool argument the model inferred
+     * out of user text), and the record behind it holds allergies, chronic conditions
+     * and medications. Nothing about being signed in earns you a stranger's chart, so
+     * every read of it goes through here first.
+     */
+    static async assertPatientAccess(userId, patientId) {
+        const [user, patient] = await Promise.all([
+            prisma_1.default.user.findUnique({
+                where: { id: userId },
+                select: { role: true, email: true, organizationId: true },
+            }),
+            prisma_1.default.patient.findUnique({
+                where: { id: patientId },
+                select: { email: true, organizationId: true, deletedAt: true },
+            }),
+        ]);
+        if (!user)
+            throw new errors_1.ForbiddenError('You do not have access to this patient record');
+        if (!patient || patient.deletedAt)
+            throw new errors_1.NotFoundError('Patient not found');
+        if (CLINICAL_ROLES.includes(user.role)) {
+            // Staff stay inside their own tenant when both sides declare one.
+            if (user.organizationId &&
+                patient.organizationId &&
+                user.organizationId !== patient.organizationId) {
+                throw new errors_1.ForbiddenError('You do not have access to this patient record');
+            }
+            return;
+        }
+        // Patients reach exactly one chart: the one filed under their own address.
+        // Email is the only identifier User and Patient share — see
+        // PatientService.getPatientForUser for the same interim link.
+        const sameEmail = !!user.email && !!patient.email && user.email.toLowerCase() === patient.email.toLowerCase();
+        if (!sameEmail) {
+            throw new errors_1.ForbiddenError('You do not have access to this patient record');
+        }
+    }
     static async processTextMessage(data, userId, ipAddress) {
         if (!aiClient_1.llmClient.isConfigured()) {
             throw new errors_1.BadRequestError('AI chatbot is not configured. Set GROQ_API_KEY.');
@@ -56,6 +104,7 @@ class ChatbotService {
         const intentResult = await aiClient_1.llmClient.classifyIntent(data.message);
         let patientContext = {};
         if (data.patientId) {
+            await this.assertPatientAccess(userId, data.patientId);
             const patient = await prisma_1.default.patient.findUnique({
                 where: { id: data.patientId },
                 select: {
@@ -67,7 +116,7 @@ class ChatbotService {
             if (patient)
                 patientContext = { patient };
         }
-        const history = await this.getRecentHistory(sessionId, 10);
+        const history = await this.getRecentHistory(sessionId, userId, 10);
         let knowledgeContext = '';
         try {
             const ragResults = await vectorlessRagClient_1.vectorlessRagClient.search(data.message, 3);
@@ -199,7 +248,7 @@ class ChatbotService {
         const startTime = Date.now();
         try {
             const systemPrompt = aiClient_1.llmClient.getSystemPrompt(data.context || 'GENERAL');
-            const history = await this.getRecentHistory(sessionId, 5);
+            const history = await this.getRecentHistory(sessionId, userId, 5);
             const messages = [{ role: 'system', content: systemPrompt }];
             for (const msg of history) {
                 messages.push({ role: msg.role, content: msg.content });
@@ -240,13 +289,24 @@ class ChatbotService {
             callbacks.onError(error);
         }
     }
-    static async getChatHistory(query) {
+    /**
+     * Scoped to the caller. `sessionId` is a client-supplied uuid, so without the
+     * userId filter anyone holding (or guessing) one could read someone else's
+     * conversation — and these transcripts discuss symptoms and medications.
+     * Staff who pass a `patientId` are checked against that chart first.
+     */
+    static async getChatHistory(query, userId) {
         const { sessionId, patientId, page = 1, limit = 50 } = query;
-        const where = {};
+        const where = { userId };
         if (sessionId)
             where.sessionId = sessionId;
-        if (patientId)
+        if (patientId) {
+            await this.assertPatientAccess(userId, patientId);
             where.patientId = patientId;
+            // A clinician asking for a chart's history wants every conversation about
+            // that patient, not only the ones they personally typed.
+            delete where.userId;
+        }
         const skip = (page - 1) * limit;
         const [messages, total] = await Promise.all([
             prisma_1.default.conversationHistory.findMany({
@@ -269,14 +329,20 @@ class ChatbotService {
             pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
         };
     }
-    static async clearHistory(sessionId, patientId) {
-        const where = {};
+    static async clearHistory(userId, sessionId, patientId) {
+        if (!sessionId && !patientId) {
+            throw new errors_1.BadRequestError('Provide a sessionId or patientId to clear.');
+        }
+        const where = { userId };
         if (sessionId)
             where.sessionId = sessionId;
-        if (patientId)
+        if (patientId) {
+            await this.assertPatientAccess(userId, patientId);
             where.patientId = patientId;
-        await prisma_1.default.conversationHistory.deleteMany({ where });
-        logger_1.default.info(`Chat history cleared: session=${sessionId}, patient=${patientId}`);
+            delete where.userId;
+        }
+        const { count } = await prisma_1.default.conversationHistory.deleteMany({ where });
+        logger_1.default.info(`Chat history cleared by ${userId}: session=${sessionId}, patient=${patientId}, removed=${count}`);
     }
     static async getChatStats() {
         const today = new Date();
@@ -301,9 +367,9 @@ class ChatbotService {
             ragProvider: 'postgresql_fts',
         };
     }
-    static async getRecentHistory(sessionId, limit) {
+    static async getRecentHistory(sessionId, userId, limit) {
         return prisma_1.default.conversationHistory.findMany({
-            where: { sessionId },
+            where: { sessionId, userId },
             orderBy: { createdAt: 'desc' },
             take: limit,
             select: { role: true, content: true },
@@ -327,12 +393,16 @@ class ChatbotService {
             case 'check_symptoms':
                 return aiClient_1.llmClient.analyzeSymptoms(Array.isArray(args.symptoms) ? args.symptoms : [String(args.symptoms)]);
             case 'check_drug_interactions': {
-                const patient = args.patientId
-                    ? await prisma_1.default.patient.findUnique({
+                // The model chose this id from free text, so it gets the same gate as a
+                // caller-supplied one before any medication list comes back.
+                let patient = null;
+                if (args.patientId) {
+                    await this.assertPatientAccess(userId, args.patientId);
+                    patient = await prisma_1.default.patient.findUnique({
                         where: { id: args.patientId },
                         select: { currentMedications: true, allergies: true, firstName: true },
-                    })
-                    : null;
+                    });
+                }
                 const currentMeds = patient?.currentMedications || [];
                 const drugName = args.drugName || '';
                 const hasAllergy = (patient?.allergies || []).some((a) => a.toLowerCase().includes(drugName.toLowerCase()));

@@ -4,25 +4,27 @@
 // For production values, see environment.production.ts
 // =============================================================================
 
+import { getRuntimeBoolean, getRuntimeString } from './runtime-config';
+
 export const environment = {
   production: false,
 
   // ─── Backend API ───────────────────────────────────────────────────────────
-  apiUrl: 'http://localhost:5000/api/v1',
-  socketUrl: 'http://localhost:5000',
+  apiUrl: getRuntimeString('apiUrl', 'http://localhost:5000/api/v1'),
+  socketUrl: getRuntimeString('socketUrl', 'http://localhost:5000'),
 
   // ─── App Metadata ──────────────────────────────────────────────────────────
-  appName: 'HospynAI',
-  appVersion: '1.0.0',
+  appName: getRuntimeString('appName', 'HospynAI'),
+  appVersion: getRuntimeString('appVersion', '1.0.0'),
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
-  googleAuthUrl: 'http://localhost:5000/api/v1/auth/google',
+  googleAuthUrl: getRuntimeString('googleAuthUrl', 'http://localhost:5000/api/v1/auth/google'),
 
   // ─── Feature Flags ─────────────────────────────────────────────────────────
   features: {
-    blockchain: true,
-    aiChat: true,
-    voiceAgent: true,
+    blockchain: getRuntimeBoolean('blockchain', true),
+    aiChat: getRuntimeBoolean('aiChat', true),
+    voiceAgent: getRuntimeBoolean('voiceAgent', true),
   },
 
   // ─── Timeouts & Limits ─────────────────────────────────────────────────────

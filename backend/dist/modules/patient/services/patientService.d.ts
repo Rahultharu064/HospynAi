@@ -22,6 +22,20 @@ export declare class PatientService {
     static getPatientByPatientId(patientId: string): Promise<PatientResponse>;
     /**
      * ============================================
+     * RESOLVE THE CLINICAL RECORD OF THE SIGNED-IN USER
+     * ============================================
+     *
+     * A `User` row with role PATIENT and a `Patient` row are separate records with no
+     * foreign key between them, so a patient who signs in has no way to reach their own
+     * chart. Email is the only shared identifier both carry, so it is what we match on.
+     *
+     * This is an interim resolver. The durable fix is a nullable `userId` on `Patient`
+     * populated at registration; until then a patient whose chart was filed under a
+     * different address than the one they signed up with will not resolve.
+     */
+    static getPatientForUser(userId: string): Promise<PatientResponse>;
+    /**
+     * ============================================
      * LIST PATIENTS WITH FILTERING & PAGINATION
      * ============================================
      */

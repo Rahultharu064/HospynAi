@@ -99,5 +99,6 @@ export declare const config: {
         };
     };
     frontendUrl: string;
+    frontendOrigins: string[];
 };
 //# sourceMappingURL=index.d.ts.map

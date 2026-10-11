@@ -7,32 +7,17 @@ export declare const registerSchema: z.ZodObject<{
         firstName: z.ZodEffects<z.ZodString, string, string>;
         lastName: z.ZodEffects<z.ZodString, string, string>;
         phone: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        role: z.ZodDefault<z.ZodOptional<z.ZodNativeEnum<{
-            SUPER_ADMIN: "SUPER_ADMIN";
-            ADMIN: "ADMIN";
-            DOCTOR: "DOCTOR";
-            NURSE: "NURSE";
-            RECEPTIONIST: "RECEPTIONIST";
-            PHARMACIST: "PHARMACIST";
-            LAB_TECHNICIAN: "LAB_TECHNICIAN";
-            PATIENT: "PATIENT";
-        }>>>;
-        organizationId: z.ZodOptional<z.ZodString>;
-        branchId: z.ZodOptional<z.ZodString>;
         acceptTerms: z.ZodEffects<z.ZodBoolean, boolean, boolean>;
         acceptPrivacy: z.ZodEffects<z.ZodBoolean, boolean, boolean>;
-    }, "strip", z.ZodTypeAny, {
+    }, "strict", z.ZodTypeAny, {
         email: string;
         firstName: string;
         lastName: string;
-        role: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT";
         password: string;
         confirmPassword: string;
         acceptTerms: boolean;
         acceptPrivacy: boolean;
         phone?: string | null | undefined;
-        organizationId?: string | undefined;
-        branchId?: string | undefined;
     }, {
         email: string;
         firstName: string;
@@ -42,21 +27,15 @@ export declare const registerSchema: z.ZodObject<{
         acceptTerms: boolean;
         acceptPrivacy: boolean;
         phone?: string | null | undefined;
-        role?: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT" | undefined;
-        organizationId?: string | undefined;
-        branchId?: string | undefined;
     }>, {
         email: string;
         firstName: string;
         lastName: string;
-        role: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT";
         password: string;
         confirmPassword: string;
         acceptTerms: boolean;
         acceptPrivacy: boolean;
         phone?: string | null | undefined;
-        organizationId?: string | undefined;
-        branchId?: string | undefined;
     }, {
         email: string;
         firstName: string;
@@ -66,23 +45,17 @@ export declare const registerSchema: z.ZodObject<{
         acceptTerms: boolean;
         acceptPrivacy: boolean;
         phone?: string | null | undefined;
-        role?: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT" | undefined;
-        organizationId?: string | undefined;
-        branchId?: string | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
     body: {
         email: string;
         firstName: string;
         lastName: string;
-        role: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT";
         password: string;
         confirmPassword: string;
         acceptTerms: boolean;
         acceptPrivacy: boolean;
         phone?: string | null | undefined;
-        organizationId?: string | undefined;
-        branchId?: string | undefined;
     };
 }, {
     body: {
@@ -94,7 +67,60 @@ export declare const registerSchema: z.ZodObject<{
         acceptTerms: boolean;
         acceptPrivacy: boolean;
         phone?: string | null | undefined;
-        role?: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT" | undefined;
+    };
+}>;
+export declare const createStaffSchema: z.ZodObject<{
+    body: z.ZodObject<{
+        email: z.ZodEffects<z.ZodString, string, string>;
+        firstName: z.ZodEffects<z.ZodString, string, string>;
+        lastName: z.ZodEffects<z.ZodString, string, string>;
+        phone: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        role: z.ZodEffects<z.ZodNativeEnum<{
+            SUPER_ADMIN: "SUPER_ADMIN";
+            ADMIN: "ADMIN";
+            DOCTOR: "DOCTOR";
+            NURSE: "NURSE";
+            RECEPTIONIST: "RECEPTIONIST";
+            PHARMACIST: "PHARMACIST";
+            LAB_TECHNICIAN: "LAB_TECHNICIAN";
+            PATIENT: "PATIENT";
+        }>, "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN", "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT">;
+        organizationId: z.ZodOptional<z.ZodString>;
+        branchId: z.ZodOptional<z.ZodString>;
+    }, "strict", z.ZodTypeAny, {
+        email: string;
+        firstName: string;
+        lastName: string;
+        role: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN";
+        phone?: string | null | undefined;
+        organizationId?: string | undefined;
+        branchId?: string | undefined;
+    }, {
+        email: string;
+        firstName: string;
+        lastName: string;
+        role: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT";
+        phone?: string | null | undefined;
+        organizationId?: string | undefined;
+        branchId?: string | undefined;
+    }>;
+}, "strip", z.ZodTypeAny, {
+    body: {
+        email: string;
+        firstName: string;
+        lastName: string;
+        role: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN";
+        phone?: string | null | undefined;
+        organizationId?: string | undefined;
+        branchId?: string | undefined;
+    };
+}, {
+    body: {
+        email: string;
+        firstName: string;
+        lastName: string;
+        role: "SUPER_ADMIN" | "ADMIN" | "DOCTOR" | "NURSE" | "RECEPTIONIST" | "PHARMACIST" | "LAB_TECHNICIAN" | "PATIENT";
+        phone?: string | null | undefined;
         organizationId?: string | undefined;
         branchId?: string | undefined;
     };
@@ -172,34 +198,41 @@ export declare const forgotPasswordSchema: z.ZodObject<{
 }>;
 export declare const resetPasswordSchema: z.ZodObject<{
     body: z.ZodEffects<z.ZodObject<{
+        email: z.ZodEffects<z.ZodString, string, string>;
         token: z.ZodString;
         newPassword: z.ZodString;
         confirmPassword: z.ZodString;
     }, "strip", z.ZodTypeAny, {
+        email: string;
         token: string;
         confirmPassword: string;
         newPassword: string;
     }, {
+        email: string;
         token: string;
         confirmPassword: string;
         newPassword: string;
     }>, {
+        email: string;
         token: string;
         confirmPassword: string;
         newPassword: string;
     }, {
+        email: string;
         token: string;
         confirmPassword: string;
         newPassword: string;
     }>;
 }, "strip", z.ZodTypeAny, {
     body: {
+        email: string;
         token: string;
         confirmPassword: string;
         newPassword: string;
     };
 }, {
     body: {
+        email: string;
         token: string;
         confirmPassword: string;
         newPassword: string;
@@ -303,6 +336,7 @@ export declare const resendOtpSchema: z.ZodObject<{
     };
 }>;
 export type RegisterInput = z.infer<typeof registerSchema>['body'];
+export type CreateStaffInput = z.infer<typeof createStaffSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>['body'];
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>['body'];

@@ -345,9 +345,10 @@ class AnalyticsService {
         const where = {
             createdAt: { gte: dateRange.start, lte: dateRange.end },
         };
-        const [totalVoice, totalCalls, aiResolved, voiceTypes, callOutcomes,] = await Promise.all([
+        const [totalVoice, totalCalls, totalAgentTasks, aiResolved, voiceTypes, callOutcomes,] = await Promise.all([
             prisma_1.default.voiceLog.count({ where }),
             prisma_1.default.callLog.count({ where }),
+            prisma_1.default.agentLog.count({ where }),
             prisma_1.default.callLog.count({ where: { ...where, outcome: 'AI_RESOLVED' } }),
             prisma_1.default.voiceLog.groupBy({ by: ['interactionType'], where, _count: true }),
             prisma_1.default.callLog.groupBy({ by: ['outcome'], where, _count: true }),
@@ -359,6 +360,7 @@ class AnalyticsService {
         return {
             totalVoiceInteractions: totalVoice,
             totalCalls,
+            totalAgentTasks,
             aiResolvedCalls: aiResolved,
             handoffRate: totalCalls > 0 ? ((totalCalls - aiResolved) / totalCalls) * 100 : 0,
             averageConfidence: 0.92,

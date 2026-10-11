@@ -34,6 +34,18 @@ PatientController.list = errorMiddleware_1.AsyncHandler.handle(async (req, res) 
         pagination: result.pagination,
     });
 });
+// GET /api/v1/patients/me
+PatientController.me = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
+    const userId = req.user?.userId;
+    if (!userId)
+        throw new errors_1.UnauthorizedError();
+    const patient = await patientService_1.PatientService.getPatientForUser(userId);
+    res.status(200).json({
+        success: true,
+        status: 200,
+        data: patient,
+    });
+});
 // GET /api/v1/patients/:id
 PatientController.getById = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const { id } = req.params;

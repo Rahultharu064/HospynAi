@@ -183,7 +183,9 @@ class MemoryService {
             throw new errors_1.NotFoundError('Memory not found');
         // Delete from Qdrant if embedding exists
         if (memory.embeddingId) {
-            await quadrantClient_1.qdrantService.deleteVectors([memory.embeddingId]).catch(() => { });
+            await quadrantClient_1.qdrantService.deleteVectors([memory.embeddingId]).catch((error) => {
+                logger_1.default.warn(`Failed to delete vector for memory ${id} from Qdrant: ${error.message}`);
+            });
         }
         await prisma_1.default.aiMemory.delete({ where: { id } });
         logger_1.default.info(`Memory deleted: ${id}`);

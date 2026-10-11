@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resendOtpSchema = exports.updateProfileSchema = exports.changePasswordSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.verifyOtpSchema = exports.loginSchema = exports.registerSchema = void 0;
+exports.resendOtpSchema = exports.updateProfileSchema = exports.changePasswordSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.verifyOtpSchema = exports.loginSchema = exports.createStaffSchema = exports.registerSchema = void 0;
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 // Custom validation messages
@@ -76,6 +76,12 @@ const phoneSchema = zod_1.z
     .nullable()
     .optional();
 // Register validation
+//
+// Self-service registration is PATIENT-only, so this schema deliberately does not
+// accept `role`, `organizationId` or `branchId`. `.strict()` makes that a hard
+// rejection rather than a silent strip, so a client that tries to send
+// `role: "SUPER_ADMIN"` gets a 400 instead of quietly having it ignored. Staff
+// accounts are provisioned through the authenticated admin-only route below.
 exports.registerSchema = zod_1.z.object({
     body: zod_1.z.object({
         email: emailSchema,
@@ -86,19 +92,32 @@ exports.registerSchema = zod_1.z.object({
         firstName: firstNameSchema,
         lastName: lastNameSchema,
         phone: zod_1.z.string().regex(/^\+?[1-9]\d{6,14}$/, VALIDATION_MESSAGES.phone.format).nullable().optional(),
-        role: zod_1.z.nativeEnum(client_1.UserRole).optional().default(client_1.UserRole.PATIENT),
-        organizationId: zod_1.z.string().cuid('Invalid organization ID').optional(),
-        branchId: zod_1.z.string().cuid('Invalid branch ID').optional(),
         acceptTerms: zod_1.z.boolean().refine((val) => val === true, {
             message: 'You must accept the terms and conditions',
         }),
         acceptPrivacy: zod_1.z.boolean().refine((val) => val === true, {
             message: 'You must accept the privacy policy',
         }),
-    }).refine((data) => data.password === data.confirmPassword, {
+    }).strict().refine((data) => data.password === data.confirmPassword, {
         message: 'Passwords do not match',
         path: ['confirmPassword'],
     }),
+});
+// Staff provisioning — the privileged counterpart to registerSchema. Reaching the
+// handler behind this schema requires an authenticated SUPER_ADMIN/ADMIN, which is
+// what makes `role` safe to accept here.
+exports.createStaffSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        email: emailSchema,
+        firstName: firstNameSchema,
+        lastName: lastNameSchema,
+        phone: zod_1.z.string().regex(/^\+?[1-9]\d{6,14}$/, VALIDATION_MESSAGES.phone.format).nullable().optional(),
+        role: zod_1.z.nativeEnum(client_1.UserRole).refine((role) => role !== client_1.UserRole.PATIENT, {
+            message: 'Use patient registration to create patient accounts',
+        }),
+        organizationId: zod_1.z.string().cuid('Invalid organization ID').optional(),
+        branchId: zod_1.z.string().cuid('Invalid branch ID').optional(),
+    }).strict(),
 });
 // Login validation
 exports.loginSchema = zod_1.z.object({
@@ -131,8 +150,14 @@ exports.forgotPasswordSchema = zod_1.z.object({
     }),
 });
 // Reset password
+//
+// `email` is required so the reset code can be looked up scoped to one account.
+// Without it the 6-digit code would be matched across every user's live reset
+// tokens, which turns a guessed code into a takeover of whichever account happens
+// to hold it.
 exports.resetPasswordSchema = zod_1.z.object({
     body: zod_1.z.object({
+        email: emailSchema,
         token: zod_1.z.string().min(1, 'Reset token is required'),
         newPassword: passwordSchema,
         confirmPassword: zod_1.z.string({

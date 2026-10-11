@@ -9,10 +9,36 @@ const passport_1 = __importDefault(require("passport"));
 const config_1 = require("../../../config");
 const authService_1 = require("../services/authService");
 const tokenService_1 = require("../services/tokenService");
+const sessionService_1 = require("../services/sessionService");
 const fileService_1 = require("../services/fileService");
 const errorMiddleware_1 = require("../../../middleware/errorMiddleware");
 const errors_1 = require("../../../utils/errors");
 const logger_1 = __importDefault(require("../../../utils/logger"));
+/**
+ * The refresh cookie is scoped to the auth router, so it is never attached to any
+ * other API call — combined with sameSite: 'strict' that's what keeps CSRF off the
+ * refresh endpoint.
+ */
+const REFRESH_COOKIE = 'refreshToken';
+const REFRESH_COOKIE_PATH = '/api/v1/auth';
+/**
+ * Single place that writes the refresh cookie. `maxAge` is derived from the token's
+ * own absolute expiry rather than a hardcoded duration — the two used to be written
+ * independently, which silently downgraded a 30-day "remember me" login to 7 days on
+ * the first refresh.
+ */
+function setRefreshCookie(res, token, expiresAt) {
+    res.cookie(REFRESH_COOKIE, token, {
+        httpOnly: true,
+        secure: config_1.config.nodeEnv === 'production',
+        sameSite: 'strict',
+        maxAge: Math.max(0, expiresAt.getTime() - Date.now()),
+        path: REFRESH_COOKIE_PATH,
+    });
+}
+function clearRefreshCookie(res) {
+    res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_PATH });
+}
 class AuthController {
 }
 exports.AuthController = AuthController;
@@ -21,6 +47,18 @@ AuthController.register = errorMiddleware_1.AsyncHandler.handle(async (req, res)
     const dto = req.body;
     const result = await authService_1.AuthService.register(dto, req.ip || '', req.headers['user-agent'] || '');
     res.status(201).json({ success: true, status: 201, message: result.message, data: { userId: result.userId, email: result.email } });
+});
+/** Staff provisioning — guarded by authenticate + authorize(SUPER_ADMIN, ADMIN) on the route. */
+AuthController.createStaff = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
+    const dto = req.body;
+    if (!req.user?.userId)
+        throw new errors_1.UnauthorizedError();
+    const actor = await authService_1.AuthService.getActorContext(req.user.userId);
+    const result = await authService_1.AuthService.createStaff(dto, actor, req.ip || '', req.headers['user-agent'] || '');
+    res.status(201).json({
+        success: true, status: 201, message: result.message,
+        data: { userId: result.userId, email: result.email, role: result.role },
+    });
 });
 AuthController.login = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const dto = req.body;
@@ -31,13 +69,7 @@ AuthController.login = errorMiddleware_1.AsyncHandler.handle(async (req, res) =>
             data: { requiresVerification: true, userId: result.userId },
         });
     }
-    res.cookie('refreshToken', result.tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: (dto.rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000,
-        path: '/api/v1/auth',
-    });
+    setRefreshCookie(res, result.tokens.refreshToken, result.tokens.refreshTokenExpiresAt);
     res.status(200).json({
         success: true, status: 200, message: 'Login successful',
         data: { accessToken: result.tokens.accessToken, expiresIn: result.tokens.expiresIn, user: result.user },
@@ -45,13 +77,50 @@ AuthController.login = errorMiddleware_1.AsyncHandler.handle(async (req, res) =>
 });
 AuthController.logout = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     await authService_1.AuthService.logout(req.user?.userId || '', req.sessionId || '', req.cookies?.refreshToken);
-    res.clearCookie('refreshToken', { path: '/api/v1/auth' });
+    clearRefreshCookie(res);
     res.status(200).json({ success: true, status: 200, message: 'Logged out successfully' });
+});
+/** Sign out of every device — revokes all sessions and refresh tokens. */
+AuthController.logoutAll = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
+    if (!req.user?.userId)
+        throw new errors_1.UnauthorizedError();
+    const result = await authService_1.AuthService.logoutAll(req.user.userId);
+    clearRefreshCookie(res);
+    res.status(200).json({ success: true, status: 200, message: result.message });
+});
+/** "Where you're signed in" — active sessions for the current user. */
+AuthController.listSessions = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
+    if (!req.user?.userId)
+        throw new errors_1.UnauthorizedError();
+    const sessions = await sessionService_1.SessionService.listActiveSessions(req.user.userId, req.sessionId);
+    res.status(200).json({ success: true, status: 200, data: sessions });
+});
+/** Revoke a single other session. Scoped to the caller's own sessions. */
+AuthController.revokeSession = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
+    if (!req.user?.userId)
+        throw new errors_1.UnauthorizedError();
+    const { sessionId } = req.params;
+    const revoked = await sessionService_1.SessionService.revokeSessionById(req.user.userId, sessionId);
+    if (!revoked)
+        throw new errors_1.NotFoundError('Session not found');
+    res.status(200).json({ success: true, status: 200, message: 'Session revoked' });
 });
 AuthController.verifyOtp = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const dto = req.body;
     const result = await authService_1.AuthService.verifyOtp(dto.email, dto.code, dto.type, req.ip || '', req.headers['user-agent'] || '');
-    res.status(200).json({ success: true, status: 200, message: result.message });
+    // Email verification and 2FA complete a sign-in, so they hand back a session
+    // exactly like /login does. Phone verification and password-reset codes don't.
+    if ('tokens' in result && result.tokens) {
+        setRefreshCookie(res, result.tokens.refreshToken, result.tokens.refreshTokenExpiresAt);
+        return res.status(200).json({
+            success: true, status: 200, message: result.message,
+            data: { accessToken: result.tokens.accessToken, expiresIn: result.tokens.expiresIn, user: result.user },
+        });
+    }
+    res.status(200).json({
+        success: true, status: 200, message: result.message,
+        data: { verified: true, isEmailVerified: result.isEmailVerified },
+    });
 });
 AuthController.resendOtp = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const dto = req.body;
@@ -62,11 +131,17 @@ AuthController.refreshToken = errorMiddleware_1.AsyncHandler.handle(async (req, 
     const oldRefreshToken = req.cookies?.refreshToken || req.body.refreshToken;
     if (!oldRefreshToken)
         throw new errors_1.BadRequestError('Refresh token is required');
-    const tokens = await tokenService_1.TokenService.rotateRefreshToken(oldRefreshToken, req.ip || '', req.headers['user-agent'] || '');
-    res.cookie('refreshToken', tokens.refreshToken, {
-        httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
-    });
+    let tokens;
+    try {
+        tokens = await tokenService_1.TokenService.rotateRefreshToken(oldRefreshToken, req.ip || '', req.headers['user-agent'] || '');
+    }
+    catch (error) {
+        // A rejected refresh token is spent — drop the cookie so the browser stops
+        // replaying a credential that will never work again.
+        clearRefreshCookie(res);
+        throw error;
+    }
+    setRefreshCookie(res, tokens.refreshToken, tokens.refreshTokenExpiresAt);
     res.status(200).json({
         success: true, status: 200, message: 'Token refreshed',
         data: { accessToken: tokens.accessToken, expiresIn: tokens.expiresIn },
@@ -80,7 +155,7 @@ AuthController.forgotPassword = errorMiddleware_1.AsyncHandler.handle(async (req
 AuthController.resetPassword = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const dto = req.body;
     const result = await authService_1.AuthService.resetPassword(dto, req.ip || '', req.headers['user-agent'] || '');
-    res.clearCookie('refreshToken', { path: '/api/v1/auth' });
+    clearRefreshCookie(res);
     res.status(200).json({ success: true, status: 200, message: result.message });
 });
 AuthController.changePassword = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
@@ -111,6 +186,13 @@ AuthController.uploadAvatar = errorMiddleware_1.AsyncHandler.handle(async (req, 
     const result = await authService_1.AuthService.uploadAvatar(req.user.userId, req.file, fileService_1.FileService);
     res.status(200).json({ success: true, status: 200, message: 'Avatar uploaded', data: result });
 });
+AuthController.deactivateAccount = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
+    if (!req.user?.userId)
+        throw new errors_1.UnauthorizedError();
+    const result = await authService_1.AuthService.deactivateAccount(req.user.userId, req.ip || '', req.headers['user-agent'] || '');
+    clearRefreshCookie(res);
+    res.status(200).json({ success: true, status: 200, message: result.message });
+});
 // This is a browser redirect flow end-to-end, so on any failure — a rejected
 // Google login, or an error thrown inside AuthService.googleLogin — the user must
 // land back on the frontend with an error, never on a raw JSON error response
@@ -124,10 +206,7 @@ AuthController.googleCallback = (req, res, next) => {
         }
         try {
             const result = await authService_1.AuthService.googleLogin(profile, req.ip || '', req.headers['user-agent'] || '');
-            res.cookie('refreshToken', result.tokens.refreshToken, {
-                httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
-                maxAge: 7 * 24 * 60 * 60 * 1000, path: '/api/v1/auth',
-            });
+            setRefreshCookie(res, result.tokens.refreshToken, result.tokens.refreshTokenExpiresAt);
             res.redirect(`${config_1.config.frontendUrl}/auth/callback?token=${result.tokens.accessToken}`);
         }
         catch (error) {

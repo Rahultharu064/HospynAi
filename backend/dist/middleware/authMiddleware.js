@@ -114,6 +114,11 @@ const authorize = (...allowedRoles) => {
 exports.authorize = authorize;
 /**
  * Optional authentication - attaches user if token is present, but doesn't require it
+ *
+ * Runs the same session and account-status checks as `authenticate`. A valid-looking
+ * JWT used to be trusted on its own here, so a logged-out, suspended, or deleted
+ * user still arrived at downstream handlers as an authenticated `req.user` for the
+ * remaining life of their access token.
  */
 const optionalAuth = async (req, res, next) => {
     try {
@@ -125,8 +130,20 @@ const optionalAuth = async (req, res, next) => {
                     issuer: config_1.config.jwt.issuer,
                     audience: config_1.config.jwt.audience,
                 });
-                req.user = decoded;
-                req.sessionId = decoded.sessionId;
+                const session = await prisma_1.default.session.findUnique({
+                    where: { token: decoded.sessionId },
+                    select: { id: true, expiresAt: true },
+                });
+                const user = session && session.expiresAt > new Date()
+                    ? await prisma_1.default.user.findUnique({
+                        where: { id: decoded.userId },
+                        select: { status: true },
+                    })
+                    : null;
+                if (user && user.status !== 'SUSPENDED' && user.status !== 'INACTIVE') {
+                    req.user = decoded;
+                    req.sessionId = decoded.sessionId;
+                }
             }
         }
     }
@@ -139,12 +156,27 @@ const optionalAuth = async (req, res, next) => {
 exports.optionalAuth = optionalAuth;
 /**
  * Rate limit by user ID
+ *
+ * Expired buckets are swept on write so the Map can't grow without bound — it was
+ * previously keyed by user id or IP and never evicted, which is an unbounded memory
+ * leak on a long-running process.
  */
 const rateLimitByUser = (maxRequests = 100, windowMs = 900000) => {
     const requestCounts = new Map();
+    let lastSweep = Date.now();
+    const sweep = (now) => {
+        if (now - lastSweep < windowMs)
+            return;
+        lastSweep = now;
+        for (const [key, bucket] of requestCounts) {
+            if (now > bucket.resetTime)
+                requestCounts.delete(key);
+        }
+    };
     return (req, res, next) => {
         const userId = req.user?.userId || req.ip || 'anonymous';
         const now = Date.now();
+        sweep(now);
         const userRequests = requestCounts.get(userId);
         if (!userRequests || now > userRequests.resetTime) {
             requestCounts.set(userId, { count: 1, resetTime: now + windowMs });

@@ -147,12 +147,15 @@ export function setupChatbotSocket(io: Server): void {
      */
     socket.on('get-history', async (data: { sessionId?: string; patientId?: string }) => {
       try {
-        const history = await ChatbotService.getChatHistory({
-          sessionId: data.sessionId,
-          patientId: data.patientId,
-          page: 1,
-          limit: 50,
-        });
+        const history = await ChatbotService.getChatHistory(
+          {
+            sessionId: data.sessionId,
+            patientId: data.patientId,
+            page: 1,
+            limit: 50,
+          },
+          user.userId
+        );
 
         socket.emit('chat-history', history);
       } catch (error: any) {
@@ -165,7 +168,7 @@ export function setupChatbotSocket(io: Server): void {
      */
     socket.on('clear-history', async (data: { sessionId?: string; patientId?: string }) => {
       try {
-        await ChatbotService.clearHistory(data.sessionId, data.patientId);
+        await ChatbotService.clearHistory(user.userId, data.sessionId, data.patientId);
         socket.emit('history-cleared', { success: true });
       } catch (error: any) {
         socket.emit('error', { message: error.message });

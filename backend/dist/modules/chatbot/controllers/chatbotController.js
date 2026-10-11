@@ -56,13 +56,19 @@ ChatbotController.sendAudio = errorMiddleware_1.AsyncHandler.handle(async (req, 
 // GET /api/v1/chatbot/history
 ChatbotController.getHistory = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const query = req.query;
-    const result = await chatbotService_1.ChatbotService.getChatHistory(query);
+    const userId = req.user?.userId;
+    if (!userId)
+        throw new errors_1.UnauthorizedError();
+    const result = await chatbotService_1.ChatbotService.getChatHistory(query, userId);
     res.status(200).json({ success: true, status: 200, data: result });
 });
 // DELETE /api/v1/chatbot/history
 ChatbotController.clearHistory = errorMiddleware_1.AsyncHandler.handle(async (req, res) => {
     const dto = req.body;
-    await chatbotService_1.ChatbotService.clearHistory(dto.sessionId, dto.patientId);
+    const userId = req.user?.userId;
+    if (!userId)
+        throw new errors_1.UnauthorizedError();
+    await chatbotService_1.ChatbotService.clearHistory(userId, dto.sessionId, dto.patientId);
     res.status(200).json({ success: true, status: 200, message: 'History cleared' });
 });
 // GET /api/v1/chatbot/stats

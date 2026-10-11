@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const passport_1 = __importDefault(require("passport"));
+const client_1 = require("@prisma/client");
 const authController_1 = require("../controllers/authController");
 const authMiddleware_1 = require("../../../middleware/authMiddleware");
 const uploadMiddleware_1 = require("../../../middleware/uploadMiddleware");
@@ -23,11 +24,15 @@ const otpLimiter = (0, express_rate_limit_1.rateLimit)({
     message: { success: false, status: 429, message: 'Too many OTP attempts' },
 });
 // Public routes
+//
+// /register is PATIENT-only by construction — see registerSchema, which rejects
+// role/organizationId/branchId outright. Staff accounts are created via
+// POST /staff below, behind authenticate + authorize.
 router.post('/register', authLimiter, (0, validateMiddleware_1.validate)({ body: authValidator_1.registerSchema.shape.body }), authController_1.AuthController.register);
 router.post('/login', authLimiter, (0, validateMiddleware_1.validate)({ body: authValidator_1.loginSchema.shape.body }), authController_1.AuthController.login);
 router.post('/verify-otp', otpLimiter, (0, validateMiddleware_1.validate)({ body: authValidator_1.verifyOtpSchema.shape.body }), authController_1.AuthController.verifyOtp);
 router.post('/resend-otp', otpLimiter, (0, validateMiddleware_1.validate)({ body: authValidator_1.resendOtpSchema.shape.body }), authController_1.AuthController.resendOtp);
-router.post('/refresh', authController_1.AuthController.refreshToken);
+router.post('/refresh', authLimiter, authController_1.AuthController.refreshToken);
 router.post('/forgot-password', authLimiter, (0, validateMiddleware_1.validate)({ body: authValidator_1.forgotPasswordSchema.shape.body }), authController_1.AuthController.forgotPassword);
 router.post('/reset-password', authLimiter, (0, validateMiddleware_1.validate)({ body: authValidator_1.resetPasswordSchema.shape.body }), authController_1.AuthController.resetPassword);
 // Google OAuth
@@ -35,9 +40,17 @@ router.get('/google', passport_1.default.authenticate('google', { scope: ['profi
 router.get('/google/callback', authController_1.AuthController.googleCallback);
 // Protected routes
 router.post('/logout', authMiddleware_1.authenticate, authController_1.AuthController.logout);
+router.post('/logout-all', authMiddleware_1.authenticate, authController_1.AuthController.logoutAll);
 router.get('/me', authMiddleware_1.authenticate, authController_1.AuthController.getMe);
 router.patch('/profile', authMiddleware_1.authenticate, (0, validateMiddleware_1.validate)({ body: authValidator_1.updateProfileSchema.shape.body }), authController_1.AuthController.updateProfile);
 router.post('/change-password', authMiddleware_1.authenticate, (0, validateMiddleware_1.validate)({ body: authValidator_1.changePasswordSchema.shape.body }), authController_1.AuthController.changePassword);
 router.post('/avatar', authMiddleware_1.authenticate, uploadMiddleware_1.uploadAvatar, authController_1.AuthController.uploadAvatar);
+// Concurrent session controls (PRD FR-AUTH: "session management with concurrent
+// session controls"). Both are scoped to the caller's own sessions.
+router.get('/sessions', authMiddleware_1.authenticate, authController_1.AuthController.listSessions);
+router.delete('/sessions/:sessionId', authMiddleware_1.authenticate, authController_1.AuthController.revokeSession);
+router.post('/deactivate', authMiddleware_1.authenticate, authController_1.AuthController.deactivateAccount);
+// Privileged staff provisioning — the only route that honours a caller-supplied role.
+router.post('/staff', authMiddleware_1.authenticate, (0, authMiddleware_1.authorize)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateMiddleware_1.validate)({ body: authValidator_1.createStaffSchema.shape.body }), authController_1.AuthController.createStaff);
 exports.default = router;
 //# sourceMappingURL=authRoute.js.map

@@ -56,6 +56,11 @@ function resolveBlockchainDeploymentsFile(): string {
   return configured;
 }
 
+const frontendOrigins = (process.env.FRONTEND_URL || 'http://localhost:4200')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 export const config = {
   port: process.env.PORT || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -172,4 +177,5 @@ export const config = {
   },
   
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:4200',
+  frontendOrigins,
 };
