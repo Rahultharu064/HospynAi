@@ -1,8 +1,9 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { environment } from '../../../../../environments/environment';
 import { AuthService } from '../../../../core/services/auth.service';
 import { AnalyticsService } from '../../../analytics/services/analytics.service';
 import { DashboardStats } from '../../../analytics/models/analytics.model';
@@ -48,14 +49,39 @@ const SCHEDULE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST
             <span class="font-medium text-teal-300">{{ today() }}</span>
           </p>
         </div>
-        <span class="inline-flex w-fit items-center gap-2 rounded-full border border-navy-700 bg-navy-900/80 backdrop-blur-md px-4 py-2 text-xs font-mono uppercase tracking-widest text-teal-300 shadow-glow-teal">
-          <span class="relative flex h-2 w-2">
-            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75"></span>
-            <span class="relative inline-flex h-2 w-2 rounded-full bg-teal-400"></span>
+        <div class="flex flex-col items-start gap-3 sm:items-end">
+          <span class="inline-flex w-fit items-center gap-2 rounded-full border border-navy-700 bg-navy-900/80 backdrop-blur-md px-4 py-2 text-xs font-mono uppercase tracking-widest text-teal-300 shadow-glow-teal">
+            <span class="relative flex h-2 w-2">
+              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75"></span>
+              <span class="relative inline-flex h-2 w-2 rounded-full bg-teal-400"></span>
+            </span>
+            {{ roleLabel() }}
           </span>
-          {{ roleLabel() }}
-        </span>
+          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em]"
+                [class.border-emerald-500/50]="isProduction"
+                [class.text-emerald-300]="isProduction"
+                [class.bg-emerald-500/10]="isProduction"
+                [class.border-amber-500/50]="!isProduction"
+                [class.text-amber-200]="!isProduction"
+                [class.bg-amber-500/10]="!isProduction">
+            {{ isProduction ? 'Production live' : 'Development mode' }}
+          </span>
+        </div>
       </div>
+    </div>
+
+    <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3" appScrollReveal [revealDelay]="40">
+      @for (feature of featureStatus(); track feature.key) {
+        <div class="card flex items-center justify-between gap-4 p-4" [class.border-emerald-200]="feature.enabled" [class.bg-emerald-50/70]="feature.enabled">
+          <div>
+            <p class="text-xs font-mono uppercase tracking-[0.2em] text-gray-500">{{ feature.label }}</p>
+            <p class="mt-2 text-sm font-semibold text-gray-900">{{ feature.enabled ? 'Enabled' : 'Disabled' }}</p>
+          </div>
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-full text-lg" [class.bg-emerald-100]="feature.enabled" [class.text-emerald-700]="feature.enabled" [class.bg-gray-100]="!feature.enabled" [class.text-gray-500]="!feature.enabled">
+            {{ feature.enabled ? '✅' : '⏳' }}
+          </span>
+        </div>
+      }
     </div>
 
     @if (canSeeAnalytics()) {
@@ -246,6 +272,13 @@ export class DashboardOverviewComponent implements OnInit {
   loadingSchedule = signal(true);
 
   readonly statSkeletons = [1, 2, 3, 4, 5];
+  readonly isProduction = environment.production;
+
+  featureStatus = () => [
+    { key: 'blockchain', label: 'Blockchain', enabled: environment.features.blockchain },
+    { key: 'ai', label: 'AI assistant', enabled: environment.features.aiChat },
+    { key: 'voice', label: 'Voice agent', enabled: environment.features.voiceAgent },
+  ];
 
   firstName = () => this.authService.currentUser()?.firstName ?? '';
   canSeeAnalytics = () => ANALYTICS_ROLES.includes(this.authService.role() ?? '');
@@ -277,7 +310,11 @@ export class DashboardOverviewComponent implements OnInit {
       { label: 'My Records', description: 'Review your medical history', icon: '📋', path: '/emr', roles: ['PATIENT'] },
       { label: 'Medical records', description: 'Review patient EMR', icon: '📋', path: '/emr', roles: ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE'] },
       { label: 'Billing', description: 'Invoices and payments', icon: '💳', path: '/billing', roles: ['SUPER_ADMIN', 'ADMIN', 'RECEPTIONIST', 'PATIENT'] },
+      { label: 'Inventory', description: 'Pharmacy and stock operations', icon: '💊', path: '/inventory', roles: ['SUPER_ADMIN', 'ADMIN', 'PHARMACIST'] },
       { label: 'Analytics', description: 'Performance dashboards', icon: '📊', path: '/analytics', roles: ['SUPER_ADMIN', 'ADMIN', 'DOCTOR'] },
+      { label: 'AI Admin', description: 'AI stack telemetry and routing', icon: '🤖', path: '/admin/ai', roles: ['SUPER_ADMIN', 'ADMIN'] },
+      { label: 'Administration', description: 'Staff, orgs, and system health', icon: '⚙️', path: '/admin', roles: ['SUPER_ADMIN', 'ADMIN'] },
+      { label: 'Profile', description: 'Manage account and preferences', icon: '👤', path: '/settings/profile', roles: ['SUPER_ADMIN', 'ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECHNICIAN', 'PATIENT'] },
     ];
     return all.filter((item) => !role || item.roles.includes(role));
   }

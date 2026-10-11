@@ -51,6 +51,11 @@ export const routes: Routes = [
         loadChildren: () => import('./features/billing/billing.routes').then((m) => m.BILLING_ROUTES),
       },
       {
+        path: 'inventory',
+        canActivate: [roleGuard(['SUPER_ADMIN', 'ADMIN', 'PHARMACIST'])],
+        loadChildren: () => import('./features/inventory/inventory.routes').then((m) => m.INVENTORY_ROUTES),
+      },
+      {
         path: 'analytics',
         canActivate: [roleGuard(['SUPER_ADMIN', 'ADMIN', 'DOCTOR'])],
         loadChildren: () => import('./features/analytics/analytics.routes').then((m) => m.ANALYTICS_ROUTES),

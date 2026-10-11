@@ -14,6 +14,11 @@ export const ADMIN_ROUTES: Routes = [
     title: 'Organizations — VoiceMed Pro',
   },
   {
+    path: 'ai',
+    loadComponent: () => import('../ai/pages/admin/ai-admin.component').then((m) => m.AiAdminComponent),
+    title: 'AI administration — VoiceMed Pro',
+  },
+  {
     path: 'system',
     loadComponent: () => import('./pages/system/system-health.component').then((m) => m.SystemHealthComponent),
     title: 'System health — VoiceMed Pro',
